@@ -14,22 +14,19 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use libp2p::kad::{
-    Kademlia,
-    record::{Key, store::MemoryStore},
-};
+use subotai::node::Node;
+
+use crate::util::{retrieve, store};
 
 pub enum HashCmd {
 	Del(String, Vec<String>),
 	Exists,
-	Get,
+	Get(String, Vec<String>),
 	GetAll,
 	IncrBy,
 	Keys,
 	Len,
-	MGet,
-	MSet,
-	Set,
+	Set(String, Vec<String>, Vec<Vec<u8>>),
 	SetNx,
 	StrLen,
 	Vals,
@@ -38,13 +35,32 @@ pub enum HashCmd {
 
 use HashCmd::*;
 
-pub fn handle_hash_cmd(kademlia: &mut Kademlia<MemoryStore>, cmd: &HashCmd) {
+pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Option<Vec<u8>>>> {
 	match cmd {
-		Del(key, fields) => {
+		// Del(key, fields) => {
+		// 	for field in fields {
+		// 		let key = &format!("kh-{}-{}", key, field);
+		// 		// kademlia.remove_record(&key);
+		// 	}
+		// 	None
+		// },
+		Get(key, fields) => {
+			let mut values = Vec::new();
+
 			for field in fields {
-				let key = Key::new(&format!("kh-{}-{}", key, field));
-				kademlia.remove_record(&key);
+				let key = format!("kh-{}-{}", key, field);
+				let value = retrieve(node, &key);
+				values.push(value);
 			}
+
+			Some(values)
+		},
+		Set(key, fields, values) => {
+			for i in 0..fields.len() {
+				let key = format!("kh-{}-{}", key, fields[i]);
+				store(node, &key, &values[i]);
+			}
+			None
 		},
 		_ => unimplemented!(),
 	}
