@@ -3,6 +3,7 @@ name = "kadis"
 version = "0.1.0"
 authors = ["GiraffeKey <giraffekey@tutanota.com>"]
 edition = "2018"
+license = "GPL-3.0"
 
 [dependencies]
 anyhow = "1.0"
