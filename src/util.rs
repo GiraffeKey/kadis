@@ -14,52 +14,57 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 
 #[derive(Debug)]
-pub enum EventResult {
+pub enum CmdResult {
 	Get(Result<Vec<u8>>),
+    GetAll(Result<HashMap<String, Result<Vec<u8>>>>),
 	Put(Result<()>),
     Cond(Result<bool>),
 }
 
-impl Clone for EventResult {
+impl Clone for CmdResult {
     fn clone(&self) -> Self {
         match self {
-        	EventResult::Get(res) => EventResult::Get(
-	        	match res {
-	        		Ok(data) => Ok(data.clone()),
-	        		Err(err) => Err(anyhow!("{}", err)),
-	        	}
-	        ),
-        	EventResult::Put(res) => EventResult::Put(
+            CmdResult::Get(res) => CmdResult::Get(
+                match res {
+                    Ok(data) => Ok(data.clone()),
+                    Err(err) => Err(anyhow!("{}", err)),
+                }
+            ),
+            CmdResult::GetAll(res) => CmdResult::GetAll(
+                match res {
+                    Ok(map) => {
+                        let mut new_map = HashMap::new();
+
+                        for (field, res) in map {
+                            let res = match res {
+                                Ok(data) => Ok(data.clone()),
+                                Err(err) => Err(anyhow!("{}", err)),
+                            };
+                            new_map.insert(field.clone(), res);
+                        }
+
+                        Ok(new_map)
+                    },
+                    Err(err) => Err(anyhow!("{}", err)),
+                }
+            ),
+        	CmdResult::Put(res) => CmdResult::Put(
         		match res {
         			Ok(()) => Ok(()),
         			Err(err) => Err(anyhow!("{}", err)),
         		}
         	),
-            EventResult::Cond(res) => EventResult::Cond(
+            CmdResult::Cond(res) => CmdResult::Cond(
                 match res {
                     Ok(cond) => Ok(*cond),
                     Err(err) => Err(anyhow!("{}", err)),
                 }
             ),
         }
-    }
-}
-
-pub fn exists_result(res: EventResult) -> EventResult {
-    match res {
-        EventResult::Get(res) => EventResult::Cond(
-            match res {
-                Ok(_) => Ok(true),
-                Err(err) => if format!("{}", err) == "Not found" {
-                    Ok(false)
-                } else {
-                    Err(anyhow!(err))
-                },
-            }
-        ),
-        _ => unreachable!(),
     }
 }

@@ -56,14 +56,14 @@ use libp2p::{
     identity,
 };
 
-use crate::util::EventResult;
+use crate::util::CmdResult;
 
 #[derive(NetworkBehaviour)]
 struct Behaviour {
     kademlia: Kademlia<MemoryStore>,
     mdns: Mdns,
     #[behaviour(ignore)]
-    event_results: FnvHashMap<String, EventResult>,
+    event_results: FnvHashMap<String, CmdResult>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for Behaviour {
@@ -85,7 +85,7 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
                     let key = std::str::from_utf8(record.key.as_ref()).unwrap();
                     let name = format!("get-{}", key);
                     let value = record.value.clone();
-                    self.event_results.insert(name, EventResult::Get(Ok(value)));
+                    self.event_results.insert(name, CmdResult::Get(Ok(value)));
                 },
                 QueryResult::GetRecord(Err(err)) => {
                     let (key, err) = match err {
@@ -95,12 +95,12 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
                     };
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("get-{}", key);
-                    self.event_results.insert(name, EventResult::Get(Err(err)));
+                    self.event_results.insert(name, CmdResult::Get(Err(err)));
                 },
                 QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("put-{}", key);
-                    self.event_results.insert(name, EventResult::Put(Ok(())));
+                    self.event_results.insert(name, CmdResult::Put(Ok(())));
                 },
                 QueryResult::PutRecord(Err(err)) => {
                     let (key, err) = match err {
@@ -109,7 +109,7 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
                     };
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("put-{}", key);
-                    self.event_results.insert(name, EventResult::Get(Err(err)));
+                    self.event_results.insert(name, CmdResult::Get(Err(err)));
                 },
                 _ => (),
             },
@@ -204,7 +204,7 @@ impl Node {
 	    })
 	}
 
-    fn wait_for_result(&self, name: String) -> EventResult {
+    fn wait_for_result(&self, name: String) -> CmdResult {
         loop {
             let event_results = &mut self.swarm.lock().unwrap().event_results;
             match event_results.get(&name) {
@@ -218,7 +218,7 @@ impl Node {
         }
     }
 
-	pub async fn get(&mut self, key: &str) -> EventResult {
+	pub async fn get(&mut self, key: &str) -> CmdResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -226,13 +226,13 @@ impl Node {
         }
 
         if let Some(value) = self.cache.lock().unwrap().get(key) {
-            return EventResult::Get(Ok(value.clone()));
+            return CmdResult::Get(Ok(value.clone()));
         }
 
         let name = format!("get-{}", key);
         let res = self.wait_for_result(name);
         match res {
-            EventResult::Get(Ok(ref value)) => {
+            CmdResult::Get(Ok(ref value)) => {
                 self.cache.lock().unwrap().insert(key.into(), value.clone());
             },
             _ => (),
@@ -240,7 +240,7 @@ impl Node {
         res
 	}
 
-	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> EventResult {
+	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> CmdResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -256,7 +256,7 @@ impl Node {
         let name = format!("put-{}", key);
         let res = self.wait_for_result(name);
         match res {
-            EventResult::Put(Ok(())) => {
+            CmdResult::Put(Ok(())) => {
                 self.cache.lock().unwrap().insert(key.into(), value);
             },
             _ => (),

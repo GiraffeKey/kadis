@@ -18,14 +18,25 @@ fn main() {
 	let mut kadis = KadisBuilder::default().bootstraps(&["/ip4/0.0.0.0/tcp/5130"]).init().unwrap();
 
 	task::block_on(async move {
-		kadis.hset("cats", "herb", Cat {
-			name: "Herbert".to_string(),
-			color: "orange".to_string(),
-		}).await.unwrap();
+		let fields = &["herb", "ferb"];
+		let cats = &[
+			Cat {
+				name: "Herbert".into(),
+				color: "orange".into(),
+			},
+			Cat {
+				name: "Ferb".into(),
+				color: "black".into(),
+			},
+		];
+		kadis.hset_multiple("cats", fields, cats).await.unwrap();
 
 		log::info!("{}", kadis.hexists("cats", "herb").await.unwrap());
 		
-		let cat: Cat = kadis.hget("cats", "herb").await.unwrap();
+		let cats = kadis.hgetall::<Cat>("cats").await.unwrap();
+		log::info!("{:?}", cats);
+
+		let cat: Cat = kadis.hget("cats", "ferb").await.unwrap();
 		log::info!("{:?}", cat);
 	});
 }

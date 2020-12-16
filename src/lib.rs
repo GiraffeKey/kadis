@@ -16,6 +16,8 @@
 
 #![forbid(unsafe_code)]
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -25,22 +27,22 @@ mod util;
 
 use node::Node;
 use hash::{handle_hash_cmd, HashCmd};
-use util::EventResult;
+use util::CmdResult;
 
 pub enum Cmd<'a> {
 	Hash(HashCmd<'a>),
 }
 
-async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> Option<Vec<EventResult>> {
+async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> Vec<CmdResult> {
 	match cmd {
 		Cmd::Hash(cmd) => handle_hash_cmd(node, cmd),
 	}.await
 }
 
-fn get_result<T>(res: &EventResult) -> Result<T>
+fn get_result<T>(res: &CmdResult) -> Result<T>
 where T: DeserializeOwned {
     match res {
-        EventResult::Get(res) => match res {
+        CmdResult::Get(res) => match res {
             Ok(value) => Ok(bincode::deserialize(&value).unwrap()),
             Err(err) => Err(anyhow!("{}", err)),
         },
@@ -48,9 +50,32 @@ where T: DeserializeOwned {
     }
 }
 
-fn put_result(res: &EventResult) -> Result<()> {
+fn getall_result<T>(res: &CmdResult) -> Result<HashMap<String, Result<T>>>
+where T: DeserializeOwned {
     match res {
-        EventResult::Put(res) => match res {
+        CmdResult::GetAll(res) => match res {
+            Ok(map) => {
+                let mut new_map = HashMap::new();
+
+                for (field, res) in map {
+                    let res = match res {
+                        Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
+                        Err(err) => Err(anyhow!("{}", err)),
+                    };
+                    new_map.insert(field.clone(), res);
+                }
+
+                Ok(new_map)
+            },
+            Err(err) => Err(anyhow!("{}", err)),
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn put_result(res: &CmdResult) -> Result<()> {
+    match res {
+        CmdResult::Put(res) => match res {
             Ok(()) => Ok(()),
             Err(err) => Err(anyhow!("{}", err)),
         },
@@ -58,9 +83,9 @@ fn put_result(res: &EventResult) -> Result<()> {
     }
 }
 
-fn cond_result(res: &EventResult) -> Result<bool> {
+fn cond_result(res: &CmdResult) -> Result<bool> {
     match res {
-        EventResult::Cond(res) => match res {
+        CmdResult::Cond(res) => match res {
             Ok(cond) => Ok(*cond),
             Err(err) => Err(anyhow!("{}", err)),
         },
@@ -130,20 +155,27 @@ pub struct Kadis {
 }
 
 impl Kadis {
-	pub async fn hdel(&mut self, key: &str, field: &str) {
+	pub async fn hdel(&mut self, key: &str, field: &str) -> Result<()> {
 		let fields = &[field];
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));
-		handle_cmd(&mut self.node, cmd).await;
+		let results = handle_cmd(&mut self.node, cmd).await;
+        let res = results.first().unwrap();
+        put_result(res)
 	}
 
-	pub async fn hdel_multiple(&mut self, key: &str, fields: &[&str]) {
+	pub async fn hdel_multiple(&mut self, key: &str, fields: &[&str]) -> Result<()> {
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));
-		handle_cmd(&mut self.node, cmd).await;
+		let results = handle_cmd(&mut self.node, cmd).await;
+        let results = results.iter().map(put_result).collect::<Vec<Result<()>>>();
+        for res in results {
+            res?
+        }
+        Ok(())
 	}
 
     pub async fn hexists(&mut self, key: &str, field: &str) -> Result<bool> {
         let cmd = Cmd::Hash(HashCmd::Exists(key, field));
-        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
+        let values = handle_cmd(&mut self.node, cmd).await;
         let value = values.first().unwrap();
         cond_result(value)
     }
@@ -152,7 +184,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let fields = &[field];
         let cmd = Cmd::Hash(HashCmd::Get(key, fields));
-        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
+        let values = handle_cmd(&mut self.node, cmd).await;
         let value = values.first().unwrap();
         get_result(value)
     }
@@ -160,8 +192,16 @@ impl Kadis {
     pub async fn hget_multiple<T>(&mut self, key: &str, fields: &[&str]) -> Vec<Result<T>>
     where T: DeserializeOwned {
         let cmd = Cmd::Hash(HashCmd::Get(key, fields));
-        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
+        let values = handle_cmd(&mut self.node, cmd).await;
         values.iter().map(get_result).collect()
+    }
+
+    pub async fn hgetall<T>(&mut self, key: &str) -> Result<HashMap<String, Result<T>>>
+    where T: DeserializeOwned {
+        let cmd = Cmd::Hash(HashCmd::GetAll(key));
+        let values = handle_cmd(&mut self.node, cmd).await;
+        let value = values.first().unwrap();
+        getall_result(value)
     }
 
     pub async fn hset<T>(&mut self, key: &str, field: &str, value: T) -> Result<()>
@@ -169,16 +209,20 @@ impl Kadis {
         let fields = &[field];
         let values = vec![bincode::serialize(&value).unwrap()];
         let cmd = Cmd::Hash(HashCmd::Set(key, fields, values));
-        let results = handle_cmd(&mut self.node, cmd).await.unwrap();
+        let results = handle_cmd(&mut self.node, cmd).await;
         let res = results.first().unwrap();
         put_result(res)
     }
 
-    pub async fn hset_multiple<T>(&mut self, key: &str, fields: &[&str], values: &[T]) -> Vec<Result<()>>
+    pub async fn hset_multiple<T>(&mut self, key: &str, fields: &[&str], values: &[T]) -> Result<()>
     where T: Serialize {
         let values = values.iter().map(|v| bincode::serialize(&v).unwrap()).collect();
         let cmd = Cmd::Hash(HashCmd::Set(key, fields, values));
-        let results = handle_cmd(&mut self.node, cmd).await.unwrap();
-        results.iter().map(put_result).collect()
+        let results = handle_cmd(&mut self.node, cmd).await;
+        let results = results.iter().map(put_result).collect::<Vec<Result<()>>>();
+        for res in results {
+            res?
+        }
+        Ok(())
     }
 }
