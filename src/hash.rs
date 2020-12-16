@@ -14,16 +14,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use anyhow::Result;
-
 use crate::node::Node;
+use crate::util::EventResult;
 
 pub enum HashCmd {
 	Del(String, Vec<String>),
 	Exists,
 	Get(String, Vec<String>),
 	GetAll,
-	IncrBy,
+	Incr,
 	Keys,
 	Len,
 	Set(String, Vec<String>, Vec<Vec<u8>>),
@@ -35,7 +34,7 @@ pub enum HashCmd {
 
 use HashCmd::*;
 
-pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Result<Vec<u8>>>> {
+pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<EventResult>> {
 	match cmd {
 		Del(key, fields) => {
 			for field in fields {
@@ -49,18 +48,22 @@ pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Result<Vec<u
 
 			for field in fields {
 				let key = format!("kh-{}-{}", key, field);
-				let value = node.get(key);
+				let value = node.get(key).await;
 				values.push(value);
 			}
 
 			Some(values)
 		},
 		Set(key, fields, values) => {
+			let mut results = Vec::new();
+
 			for i in 0..fields.len() {
 				let key = format!("kh-{}-{}", key, fields[i]);
-				node.put(key, values[i].clone()).unwrap();
+				let res = node.put(key, values[i].clone()).await;
+				results.push(res);
 			}
-			None
+		
+			Some(results)
 		},
 		_ => unimplemented!(),
 	}

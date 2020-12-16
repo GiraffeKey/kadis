@@ -56,13 +56,8 @@ use libp2p::{
     identity,
 };
 
-#[derive(Debug)]
-enum EventResult {
-	Get(Result<Vec<u8>>),
-	Put(Result<()>),
-}
+use crate::util::EventResult;
 
-// We create a custom network behaviour that combines Kademlia and mDNS.
 #[derive(NetworkBehaviour)]
 struct Behaviour {
     kademlia: Kademlia<MemoryStore>,
@@ -72,7 +67,6 @@ struct Behaviour {
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for Behaviour {
-    // Called when `mdns` produces an event.
     fn inject_event(&mut self, event: MdnsEvent) {
         if let MdnsEvent::Discovered(list) = event {
             for (peer_id, multiaddr) in list {
@@ -83,7 +77,6 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for Behaviour {
 }
 
 impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
-    // Called when `kademlia` produces an event.
     fn inject_event(&mut self, message: KademliaEvent) {
         match message {
             KademliaEvent::QueryResult { result, .. } => match result {
@@ -191,7 +184,7 @@ impl Node {
 	    }));
 
         if !bootstraps.is_empty() {
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_millis(100));
         }
 
 	    Ok(Self {
@@ -199,7 +192,7 @@ impl Node {
 	    })
 	}
 
-	pub fn get(&mut self, key: String) -> Result<Vec<u8>> {
+	pub async fn get(&mut self, key: String) -> EventResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -209,19 +202,13 @@ impl Node {
         let name = format!("get-{}", key);
         loop {
             match self.swarm.lock().unwrap().event_results.get(&name) {
-                Some(res) =>  match res {
-                    EventResult::Get(res) => match res {
-                        Ok(ok) => return Ok(ok.clone()),
-                        Err(err) => return Err(anyhow!("{}", err)),
-                    },
-                    _ => unreachable!(),
-                },
+                Some(res) =>  return res.clone(),
                 None => (),
             }
         }
 	}
 
-	pub fn put(&mut self, key: String, value: Vec<u8>) -> Result<()> {
+	pub async fn put(&mut self, key: String, value: Vec<u8>) -> EventResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -237,13 +224,7 @@ impl Node {
         let name = format!("put-{}", key);
         loop {
             match self.swarm.lock().unwrap().event_results.get(&name) {
-                Some(res) => match res {
-                    EventResult::Put(res) => match res {
-                        Ok(()) => return Ok(()),
-                        Err(err) => return Err(anyhow!("{}", err)),
-                    },
-                    _ => unreachable!(),
-                },
+                Some(res) => return res.clone(),
                 None => (),
             }
         }

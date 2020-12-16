@@ -1,3 +1,4 @@
+use async_std::task;
 use kadis::Kadis;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
@@ -12,15 +13,17 @@ struct Cat {
 fn main() {
 	SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-	let _kadis = Kadis::new(&[], 5130).unwrap();
+	let _ = Kadis::new(&[], 5130).unwrap();
 
 	let mut kadis = Kadis::new(&["/ip4/0.0.0.0/tcp/5130"], 5131).unwrap();
 
-	kadis.hset("cats", "herb", Cat {
-		name: "Herbert".to_string(),
-		color: "orange".to_string(),
+	task::block_on(async move {
+		kadis.hset("cats", "herb", Cat {
+			name: "Herbert".to_string(),
+			color: "orange".to_string(),
+		}).await.unwrap();
+		
+		let cat: Cat = kadis.hget("cats", "herb").await.unwrap();
+		log::info!("{:?}", cat);
 	});
-	
-	let cat: Cat = kadis.hget("cats", "herb").unwrap();
-	log::info!("{:?}", cat);
 }
