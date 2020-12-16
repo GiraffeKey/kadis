@@ -204,6 +204,17 @@ impl Kadis {
         getall_result(value)
     }
 
+    pub async fn hincr(&mut self, key: &str, field: &str, inc: u32) -> Result<()> {
+        self.hincrf(key, field, inc as f32).await
+    }
+
+    pub async fn hincrf(&mut self, key: &str, field: &str, inc: f32) -> Result<()> {
+        let cmd = Cmd::Hash(HashCmd::Incr(key, field, inc));
+        let results = handle_cmd(&mut self.node, cmd).await;
+        let res = results.first().unwrap();
+        put_result(res)
+    }
+
     pub async fn hset<T>(&mut self, key: &str, field: &str, value: T) -> Result<()>
     where T: Serialize {
         let fields = &[field];

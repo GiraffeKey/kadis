@@ -19,7 +19,7 @@ use std::{
 	str,
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use crate::node::Node;
 use crate::util::CmdResult;
@@ -119,6 +119,26 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> Vec<CmdResult
 			}
 
 			vec![CmdResult::GetAll(Ok(values))]
+		},
+		Incr(key, field, inc) => {
+			let key = format!("kh-{}-{}", key, field);
+			let value = match node.get(&key).await {
+				CmdResult::Get(res) => match res {
+					Ok(value) => value,
+					Err(err) => return vec![CmdResult::Put(Err(err))],
+				},
+				_ => unreachable!(),
+			};
+
+			let value = match bincode::deserialize::<f32>(&value) {
+				Ok(value) => value + inc,
+				Err(err) => return vec![CmdResult::Put(Err(anyhow!(err)))],
+			};
+
+			let value = bincode::serialize(&value).unwrap();
+			let res = node.put(&key, value).await;
+
+			vec![res]
 		},
 		Set(key, fields, values) => {
 			let mut results = Vec::new();
@@ -236,6 +256,16 @@ mod tests {
 			let res = kadis.hexists("cats", "ferb").await;
 			assert!(res.is_ok());
 			assert_eq!(res.unwrap(), false);
+
+			let res = kadis.hset("nums", "n1", 6f32).await;
+			assert!(res.is_ok());
+
+			let res = kadis.hincr("nums", "n1", 2).await;
+			assert!(res.is_ok());
+
+			let res = kadis.hget::<f32>("nums", "n1").await;
+			assert!(res.is_ok());
+			assert_eq!(res.unwrap(), 8.0);
 		})
 	}
 }
