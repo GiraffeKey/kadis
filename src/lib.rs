@@ -27,11 +27,11 @@ use node::Node;
 use hash::{handle_hash_cmd, HashCmd};
 use util::EventResult;
 
-pub enum Cmd {
-	Hash(HashCmd),
+pub enum Cmd<'a> {
+	Hash(HashCmd<'a>),
 }
 
-async fn handle_cmd(node: &mut Node, cmd: Cmd) -> Option<Vec<EventResult>> {
+async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> Option<Vec<EventResult>> {
 	match cmd {
 		Cmd::Hash(cmd) => handle_hash_cmd(node, cmd),
 	}.await
@@ -72,50 +72,47 @@ impl Kadis {
 	}
 
 	pub async fn hdel(&mut self, key: &str, field: &str) {
-		let key = key.into();
-		let fields = vec![field.into()];
-		handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Del(key, fields))).await;
+		let fields = &[field];
+        let cmd = Cmd::Hash(HashCmd::Del(key, fields));
+		handle_cmd(&mut self.node, cmd).await;
 	}
 
 	pub async fn hdel_multiple(&mut self, key: &str, fields: &[&str]) {
-		let key = key.into();
-		let fields = fields.iter().map(|f| f.to_string()).collect();
-		handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Del(key, fields))).await;
+        let cmd = Cmd::Hash(HashCmd::Del(key, fields));
+		handle_cmd(&mut self.node, cmd).await;
 	}
 
     pub async fn hget<T>(&mut self, key: &str, field: &str) -> Result<T>
     where T: DeserializeOwned {
-        let key = key.into();
-        let fields = vec![field.into()];
-        let values = handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Get(key, fields))).await.unwrap();
+        let fields = &[field];
+        let cmd = Cmd::Hash(HashCmd::Get(key, fields));
+        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
         let value = values.first().unwrap();
         get_result(value)
     }
 
     pub async fn hget_multiple<T>(&mut self, key: &str, fields: &[&str]) -> Vec<Result<T>>
     where T: DeserializeOwned {
-        let key = key.into();
-        let fields = fields.iter().map(|f| f.to_string()).collect();
-        let values = handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Get(key, fields))).await.unwrap();
+        let cmd = Cmd::Hash(HashCmd::Get(key, fields));
+        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
         values.iter().map(get_result).collect()
     }
 
     pub async fn hset<T>(&mut self, key: &str, field: &str, value: T) -> Result<()>
     where T: Serialize {
-        let key = key.into();
-        let fields = vec![field.into()];
+        let fields = &[field];
         let values = vec![bincode::serialize(&value).unwrap()];
-        let results = handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Set(key, fields, values))).await.unwrap();
+        let cmd = Cmd::Hash(HashCmd::Set(key, fields, values));
+        let results = handle_cmd(&mut self.node, cmd).await.unwrap();
         let res = results.first().unwrap();
         put_result(res)
     }
 
     pub async fn hset_multiple<T>(&mut self, key: &str, fields: &[&str], values: &[T]) -> Vec<Result<()>>
     where T: Serialize {
-        let key = key.into();
-        let fields = fields.iter().map(|f| f.to_string()).collect();
         let values = values.iter().map(|v| bincode::serialize(&v).unwrap()).collect();
-        let results = handle_cmd(&mut self.node, Cmd::Hash(HashCmd::Set(key, fields, values))).await.unwrap();
+        let cmd = Cmd::Hash(HashCmd::Set(key, fields, values));
+        let results = handle_cmd(&mut self.node, cmd).await.unwrap();
         results.iter().map(put_result).collect()
     }
 }

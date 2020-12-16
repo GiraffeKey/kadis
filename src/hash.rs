@@ -17,15 +17,15 @@
 use crate::node::Node;
 use crate::util::EventResult;
 
-pub enum HashCmd {
-	Del(String, Vec<String>),
+pub enum HashCmd<'a> {
+	Del(&'a str, &'a [&'a str]),
 	Exists,
-	Get(String, Vec<String>),
+	Get(&'a str, &'a [&'a str]),
 	GetAll,
 	Incr,
 	Keys,
 	Len,
-	Set(String, Vec<String>, Vec<Vec<u8>>),
+	Set(&'a str, &'a [&'a str], Vec<Vec<u8>>),
 	SetNx,
 	StrLen,
 	Vals,
@@ -34,12 +34,12 @@ pub enum HashCmd {
 
 use HashCmd::*;
 
-pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<EventResult>> {
+pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> Option<Vec<EventResult>> {
 	match cmd {
 		Del(key, fields) => {
 			for field in fields {
 				let key = format!("kh-{}-{}", key, field);
-				node.remove(key);
+				node.remove(&key);
 			}
 			None
 		},
@@ -48,7 +48,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<EventR
 
 			for field in fields {
 				let key = format!("kh-{}-{}", key, field);
-				let value = node.get(key).await;
+				let value = node.get(&key).await;
 				values.push(value);
 			}
 
@@ -59,7 +59,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<EventR
 
 			for i in 0..fields.len() {
 				let key = format!("kh-{}-{}", key, fields[i]);
-				let res = node.put(key, values[i].clone()).await;
+				let res = node.put(&key, values[i].clone()).await;
 				results.push(res);
 			}
 		

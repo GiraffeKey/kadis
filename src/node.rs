@@ -192,7 +192,7 @@ impl Node {
 	    })
 	}
 
-	pub async fn get(&mut self, key: String) -> EventResult {
+	pub async fn get(&mut self, key: &str) -> EventResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -208,7 +208,7 @@ impl Node {
         }
 	}
 
-	pub async fn put(&mut self, key: String, value: Vec<u8>) -> EventResult {
+	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> EventResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -230,7 +230,7 @@ impl Node {
         }
 	}
 
-    pub fn remove(&mut self, key: String) {
+    pub fn remove(&mut self, key: &str) {
         let kademlia = &mut self.swarm.lock().unwrap().kademlia;
         let key = Key::new(&key);
         kademlia.remove_record(&key);
