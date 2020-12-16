@@ -68,19 +68,68 @@ fn cond_result(res: &EventResult) -> Result<bool> {
     }
 }
 
+pub struct KadisBuilder<'a> {
+    bootstraps: &'a [&'a str],
+    port: u16,
+    cache_lifetime: u64,
+}
+
+impl<'a> KadisBuilder<'a> {
+    pub fn new(bootstraps: &'a [&'a str], port: u16, cache_lifetime: u64) -> Self {
+        Self {
+            bootstraps,
+            port,
+            cache_lifetime,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            bootstraps: &[],
+            port: 0,
+            cache_lifetime: 300,
+        }
+    }
+
+    pub fn bootstraps(&self, bootstraps: &'a [&'a str]) -> Self {
+        Self {
+            bootstraps,
+            port: self.port,
+            cache_lifetime: self.cache_lifetime,
+        }
+    }
+
+    pub fn port(&self, port: u16) -> Self {
+        Self {
+            bootstraps: self.bootstraps,
+            port,
+            cache_lifetime: self.cache_lifetime,
+        }
+    }
+
+    pub fn cache_lifetime(&self, cache_lifetime: u64) -> Self {
+        Self {
+            bootstraps: self.bootstraps,
+            port: self.port,
+            cache_lifetime,
+        }
+    }
+
+    pub fn init(&self) -> Result<Kadis> {
+        let node = Node::new(self.bootstraps, self.port, self.cache_lifetime)?;
+        drop(self);
+
+        Ok(Kadis {
+            node,
+        })
+    }
+}
+
 pub struct Kadis {
     node: Node,
 }
 
 impl Kadis {
-	pub fn new(bootstraps: &[&str], port: u16) -> Result<Self> {
-        let node = Node::new(bootstraps, port)?;
-
-	    Ok(Self {
-            node,
-	    })
-	}
-
 	pub async fn hdel(&mut self, key: &str, field: &str) {
 		let fields = &[field];
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));

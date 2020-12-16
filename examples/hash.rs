@@ -1,5 +1,5 @@
 use async_std::task;
-use kadis::Kadis;
+use kadis::KadisBuilder;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use simple_logger::SimpleLogger;
@@ -13,13 +13,11 @@ struct Cat {
 fn main() {
 	SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-	let _ = Kadis::new(&[], 5130).unwrap();
+	let _ = KadisBuilder::default().port(5130).init().unwrap();
 
-	let mut kadis = Kadis::new(&["/ip4/0.0.0.0/tcp/5130"], 0).unwrap();
+	let mut kadis = KadisBuilder::default().bootstraps(&["/ip4/0.0.0.0/tcp/5130"]).init().unwrap();
 
 	task::block_on(async move {
-		log::info!("{}", kadis.hexists("cats", "herb").await.unwrap());
-
 		kadis.hset("cats", "herb", Cat {
 			name: "Herbert".to_string(),
 			color: "orange".to_string(),

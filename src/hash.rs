@@ -74,3 +74,59 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> Option<Vec<Ev
 		_ => unimplemented!(),
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use async_std::task;
+	use super::super::KadisBuilder;
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Debug, PartialEq, Deserialize, Serialize)]
+	struct Cat {
+		name: String,
+		color: String,
+	}
+
+	#[test]
+	fn hash() {
+		let _ = KadisBuilder::default().port(5130).init().unwrap();
+
+		let mut kadis = KadisBuilder::default().bootstraps(&["/ip4/0.0.0.0/tcp/5130"]).init().unwrap();
+
+		task::block_on(async move {
+			let res = kadis.hexists("cats", "herb").await;
+			assert!(res.is_ok());
+			assert_eq!(res.unwrap(), false);
+
+			let cat = Cat {
+				name: "Herbert".to_string(),
+				color: "orange".to_string(),
+			};
+
+			let res = kadis.hset("cats", "herb", &cat).await;
+			assert!(res.is_ok());
+
+			let res = kadis.hexists("cats", "herb").await;
+			assert!(res.is_ok());
+			assert_eq!(res.unwrap(), true);
+			
+			let res = kadis.hget::<Cat>("cats", "herb").await;
+			assert!(res.is_ok());
+			assert_eq!(res.unwrap(), cat);
+
+			let cat = Cat {
+				name: "Herbie".to_string(),
+				color: "orange".to_string(),
+			};
+			let res = kadis.hset("cats", "herb", &cat).await;
+			assert!(res.is_ok());
+			
+			let res = kadis.hget::<Cat>("cats", "herb").await;
+			assert!(res.is_ok());
+			assert_eq!(res.unwrap(), cat);
+
+			let res = kadis.hget::<Cat>("cats", "herbie").await;
+			assert!(res.is_err());
+		})
+	}
+}

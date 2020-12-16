@@ -17,7 +17,6 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::HashMap,
     sync::{Arc, Mutex},
     task::{Context, Poll},
     thread,
@@ -26,6 +25,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use async_std::task;
+use fnv::FnvHashMap;
 use futures::prelude::*;
 use libp2p::kad::record::store::MemoryStore;
 use libp2p::kad::{
@@ -63,7 +63,7 @@ struct Behaviour {
     kademlia: Kademlia<MemoryStore>,
     mdns: Mdns,
     #[behaviour(ignore)]
-    event_results: HashMap<String, EventResult>,
+    event_results: FnvHashMap<String, EventResult>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for Behaviour {
@@ -120,10 +120,11 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
 
 pub struct Node {
     swarm: Arc<Mutex<Swarm<Behaviour>>>,
+    cache: Arc<Mutex<FnvHashMap<String, Vec<u8>>>>,
 }
 
 impl Node {
-	pub fn new<'a>(bootstraps: &[&str], port: u16) -> Result<Self> {
+	pub fn new(bootstraps: &[&str], port: u16, cache_lifetime: u64) -> Result<Self> {
 	    let local_key = identity::Keypair::generate_ed25519();
 	    let local_peer_id = PeerId::from(local_key.public());
 
@@ -145,7 +146,7 @@ impl Node {
 
 	    let mut swarm = {
 	    	let store = MemoryStore::new(local_peer_id.clone());
-            let event_results = HashMap::new();
+            let event_results = FnvHashMap::default();
 		    let kademlia = Kademlia::new(local_peer_id.clone(), store);
 		    let mdns = task::block_on(Mdns::new())?;
 		    let behaviour = Behaviour { event_results, kademlia, mdns };
@@ -160,6 +161,7 @@ impl Node {
         }
 
         let swarm = Arc::new(Mutex::new(swarm));
+        let cache = Arc::new(Mutex::new(FnvHashMap::default()));
 
 	    let mut listening = false;
         let swarm_clone = swarm.clone();
@@ -183,12 +185,22 @@ impl Node {
 	        Poll::Pending
 	    }));
 
+        // Clean cache on an interval of cache_lifetime
+        let cache_clone = cache.clone();
+        task::spawn(async move {
+            loop {
+                cache_clone.lock().unwrap().clear();
+                task::sleep(Duration::from_secs(cache_lifetime)).await;
+            }
+        });
+
         if !bootstraps.is_empty() {
             thread::sleep(Duration::from_millis(100));
         }
 
 	    Ok(Self {
             swarm,
+            cache,
 	    })
 	}
 
@@ -213,8 +225,19 @@ impl Node {
             kademlia.get_record(&key, Quorum::One);
         }
 
+        if let Some(value) = self.cache.lock().unwrap().get(key) {
+            return EventResult::Get(Ok(value.clone()));
+        }
+
         let name = format!("get-{}", key);
-        self.wait_for_result(name)
+        let res = self.wait_for_result(name);
+        match res {
+            EventResult::Get(Ok(ref value)) => {
+                self.cache.lock().unwrap().insert(key.into(), value.clone());
+            },
+            _ => (),
+        }
+        res
 	}
 
 	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> EventResult {
@@ -223,7 +246,7 @@ impl Node {
             let key = Key::new(&key);
             let record = Record {
                 key,
-                value,
+                value: value.clone(),
                 publisher: None,
                 expires: None,
             };
@@ -231,7 +254,14 @@ impl Node {
         }
 
         let name = format!("put-{}", key);
-        self.wait_for_result(name)
+        let res = self.wait_for_result(name);
+        match res {
+            EventResult::Put(Ok(())) => {
+                self.cache.lock().unwrap().insert(key.into(), value);
+            },
+            _ => (),
+        }
+        res
 	}
 
     pub fn remove(&mut self, key: &str) {
