@@ -20,6 +20,7 @@ use anyhow::{anyhow, Result};
 pub enum EventResult {
 	Get(Result<Vec<u8>>),
 	Put(Result<()>),
+    Cond(Result<bool>),
 }
 
 impl Clone for EventResult {
@@ -37,6 +38,28 @@ impl Clone for EventResult {
         			Err(err) => Err(anyhow!("{}", err)),
         		}
         	),
+            EventResult::Cond(res) => EventResult::Cond(
+                match res {
+                    Ok(cond) => Ok(*cond),
+                    Err(err) => Err(anyhow!("{}", err)),
+                }
+            ),
         }
+    }
+}
+
+pub fn exists_result(res: EventResult) -> EventResult {
+    match res {
+        EventResult::Get(res) => EventResult::Cond(
+            match res {
+                Ok(_) => Ok(true),
+                Err(err) => if format!("{}", err) == "Not found" {
+                    Ok(false)
+                } else {
+                    Err(anyhow!(err))
+                },
+            }
+        ),
+        _ => unreachable!(),
     }
 }

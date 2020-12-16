@@ -37,9 +37,9 @@ async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> Option<Vec<EventResult>> {
 	}.await
 }
 
-fn get_result<T>(event: &EventResult) -> Result<T>
+fn get_result<T>(res: &EventResult) -> Result<T>
 where T: DeserializeOwned {
-    match event {
+    match res {
         EventResult::Get(res) => match res {
             Ok(value) => Ok(bincode::deserialize(&value).unwrap()),
             Err(err) => Err(anyhow!("{}", err)),
@@ -48,10 +48,20 @@ where T: DeserializeOwned {
     }
 }
 
-fn put_result(event: &EventResult) -> Result<()> {
-    match event {
+fn put_result(res: &EventResult) -> Result<()> {
+    match res {
         EventResult::Put(res) => match res {
             Ok(()) => Ok(()),
+            Err(err) => Err(anyhow!("{}", err)),
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn cond_result(res: &EventResult) -> Result<bool> {
+    match res {
+        EventResult::Cond(res) => match res {
+            Ok(cond) => Ok(*cond),
             Err(err) => Err(anyhow!("{}", err)),
         },
         _ => unreachable!(),
@@ -81,6 +91,13 @@ impl Kadis {
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));
 		handle_cmd(&mut self.node, cmd).await;
 	}
+
+    pub async fn hexists(&mut self, key: &str, field: &str) -> Result<bool> {
+        let cmd = Cmd::Hash(HashCmd::Exists(key, field));
+        let values = handle_cmd(&mut self.node, cmd).await.unwrap();
+        let value = values.first().unwrap();
+        cond_result(value)
+    }
 
     pub async fn hget<T>(&mut self, key: &str, field: &str) -> Result<T>
     where T: DeserializeOwned {

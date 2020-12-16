@@ -15,11 +15,11 @@
 //
 
 use crate::node::Node;
-use crate::util::EventResult;
+use crate::util::{EventResult, exists_result};
 
 pub enum HashCmd<'a> {
 	Del(&'a str, &'a [&'a str]),
-	Exists,
+	Exists(&'a str, &'a str),
 	Get(&'a str, &'a [&'a str]),
 	GetAll,
 	Incr,
@@ -42,6 +42,12 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> Option<Vec<Ev
 				node.remove(&key);
 			}
 			None
+		},
+		Exists(key, field) => {
+			let key = format!("kh-{}-{}", key, field);
+			let value = node.get(&key).await;
+			let value = exists_result(value);
+			Some(vec![value])
 		},
 		Get(key, fields) => {
 			let mut values = Vec::new();

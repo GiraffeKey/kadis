@@ -192,6 +192,20 @@ impl Node {
 	    })
 	}
 
+    fn wait_for_result(&self, name: String) -> EventResult {
+        loop {
+            let event_results = &mut self.swarm.lock().unwrap().event_results;
+            match event_results.get(&name) {
+                Some(res) => {
+                    let res = res.clone();
+                    event_results.remove(&name);
+                    return res;
+                },
+                None => (),
+            }
+        }
+    }
+
 	pub async fn get(&mut self, key: &str) -> EventResult {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
@@ -200,12 +214,7 @@ impl Node {
         }
 
         let name = format!("get-{}", key);
-        loop {
-            match self.swarm.lock().unwrap().event_results.get(&name) {
-                Some(res) =>  return res.clone(),
-                None => (),
-            }
-        }
+        self.wait_for_result(name)
 	}
 
 	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> EventResult {
@@ -222,12 +231,7 @@ impl Node {
         }
 
         let name = format!("put-{}", key);
-        loop {
-            match self.swarm.lock().unwrap().event_results.get(&name) {
-                Some(res) => return res.clone(),
-                None => (),
-            }
-        }
+        self.wait_for_result(name)
 	}
 
     pub fn remove(&mut self, key: &str) {
