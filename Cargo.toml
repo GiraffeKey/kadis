@@ -7,10 +7,12 @@ license = "GPL-3.0"
 
 [dependencies]
 anyhow = "1.0"
+async-std = "1.8"
 bincode = "1.2"
+futures = "0.3"
+libp2p = "0.32"
 log = "0.4"
 serde = "1.0"
-subotai = { version = "1.0.4-pre", git = "https://github.com/GiraffeKey/subotai" }
 
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }

@@ -14,9 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-use subotai::node::Node;
+use anyhow::Result;
 
-use crate::util::{retrieve, store};
+use crate::node::Node;
 
 pub enum HashCmd {
 	Del(String, Vec<String>),
@@ -35,21 +35,21 @@ pub enum HashCmd {
 
 use HashCmd::*;
 
-pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Option<Vec<u8>>>> {
+pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Result<Vec<u8>>>> {
 	match cmd {
-		// Del(key, fields) => {
-		// 	for field in fields {
-		// 		let key = &format!("kh-{}-{}", key, field);
-		// 		// kademlia.remove_record(&key);
-		// 	}
-		// 	None
-		// },
+		Del(key, fields) => {
+			for field in fields {
+				let key = format!("kh-{}-{}", key, field);
+				node.remove(key);
+			}
+			None
+		},
 		Get(key, fields) => {
 			let mut values = Vec::new();
 
 			for field in fields {
 				let key = format!("kh-{}-{}", key, field);
-				let value = retrieve(node, &key);
+				let value = node.get(key);
 				values.push(value);
 			}
 
@@ -58,7 +58,7 @@ pub fn handle_hash_cmd(node: &mut Node, cmd: HashCmd) -> Option<Vec<Option<Vec<u
 		Set(key, fields, values) => {
 			for i in 0..fields.len() {
 				let key = format!("kh-{}-{}", key, fields[i]);
-				store(node, &key, &values[i]);
+				node.put(key, values[i].clone()).unwrap();
 			}
 			None
 		},

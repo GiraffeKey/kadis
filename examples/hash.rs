@@ -1,4 +1,5 @@
 use kadis::Kadis;
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use simple_logger::SimpleLogger;
 
@@ -9,9 +10,11 @@ struct Cat {
 }
 
 fn main() {
-	SimpleLogger::new().init().unwrap();
+	SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
 
-	let mut kadis = Kadis::new().unwrap();
+	let _kadis = Kadis::new(&[], 5130).unwrap();
+
+	let mut kadis = Kadis::new(&["/ip4/0.0.0.0/tcp/5130"], 5131).unwrap();
 
 	kadis.hset("cats", "herb", Cat {
 		name: "Herbert".to_string(),
@@ -19,5 +22,5 @@ fn main() {
 	});
 	
 	let cat: Cat = kadis.hget("cats", "herb").unwrap();
-	println!("{:?}", cat);
+	log::info!("{:?}", cat);
 }
