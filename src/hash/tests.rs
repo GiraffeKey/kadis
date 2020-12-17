@@ -108,5 +108,27 @@ fn hash() {
 		let res = kadis.hget::<f32>("nums", "n1").await;
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), 8.0);
+
+		let res = kadis.hset_multiple("nums", &["n3", "n2"], &[5f32, 12f32]).await;
+		assert!(res.is_ok());
+
+		let res = kadis.hkeys("nums").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), vec!["n1".to_string(), "n3".to_string(), "n2".to_string()]);
+
+		let res = kadis.hlen("nums").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), 3);
+
+		let res = kadis.hsetnx("nums", "n2", 14f32).await;
+		assert!(res.is_ok());
+
+		let res = kadis.hget::<f32>("nums", "n2").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), 12.0);
+
+		let res = kadis.hvals::<f32>("nums").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), vec![8.0, 5.0, 12.0]);
 	})
 }

@@ -39,7 +39,6 @@ pub enum HashCmd<'a> {
 	Set(&'a str, &'a str, Vec<u8>),
 	SetM(&'a str, &'a [&'a str], Vec<Vec<u8>>),
 	SetNx(&'a str, &'a str, Vec<u8>),
-	StrLen(&'a str, &'a str),
 	Vals(&'a str),
 }
 
@@ -112,8 +111,8 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 					})),
 				},
 			};
-			let cond = fields.contains(&field.into());
-			HashCmdResult::Exists(Ok(cond))
+			let exists = fields.contains(&field.into());
+			HashCmdResult::Exists(Ok(exists))
 		},
 		Get(key, field) => {
 			let hash_key = format!("kh-{}-{}", key, field);
@@ -248,9 +247,45 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 		},
+		Keys(key) => {
+			let fields_key = format!("kh-fields-{}", key);
+			let keys = match get_fields(node, &fields_key).await {
+				Ok(fields) => fields,
+				Err(err) => return match err {
+					GetError::NotFound => HashCmdResult::Keys(Err(HKeysError::NotFound {
+						key: key.into(),
+					})),
+					GetError::QuorumFailed => HashCmdResult::Keys(Err(HKeysError::QuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => HashCmdResult::Keys(Err(HKeysError::Timeout {
+						key: key.into(),
+					})),
+				},
+			};
+			HashCmdResult::Keys(Ok(keys))
+		},
+		Len(key) => {
+			let fields_key = format!("kh-fields-{}", key);
+			let fields = match get_fields(node, &fields_key).await {
+				Ok(fields) => fields,
+				Err(err) => return match err {
+					GetError::NotFound => HashCmdResult::Len(Err(HLenError::NotFound {
+						key: key.into(),
+					})),
+					GetError::QuorumFailed => HashCmdResult::Len(Err(HLenError::QuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => HashCmdResult::Len(Err(HLenError::Timeout {
+						key: key.into(),
+					})),
+				},
+			};
+			HashCmdResult::Len(Ok(fields.len()))
+		},
 		Set(key, field, value) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut hash_fields = match node.get(&fields_key).await {
+			let mut fields = match node.get(&fields_key).await {
 				Ok(fields) => {
 					str::from_utf8(&fields)
 						.unwrap()
@@ -271,7 +306,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 
 			let hash_key = format!("kh-{}-{}", key, field);
 			match node.put(&hash_key, value).await {
-				Ok(()) => hash_fields.push(field.into()),
+				Ok(()) => fields.push(field.into()),
 				Err(err) => return match err {
 					PutError::QuorumFailed => HashCmdResult::Set(Err(HSetError::QuorumFailed {
 						key: key.into(),
@@ -284,10 +319,10 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			let hash_fields = hash_fields.join(",,");
-			let hash_fields = hash_fields.as_bytes().to_vec();
+			let fields = fields.join(",,");
+			let fields = fields.as_bytes().to_vec();
 
-			match node.put(&fields_key, hash_fields).await {
+			match node.put(&fields_key, fields).await {
 				Ok(_) => (),
 				Err(err) => return match err {
 					PutError::QuorumFailed => HashCmdResult::Set(Err(HSetError::FieldsQuorumFailed {
@@ -358,6 +393,104 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 		
 			HashCmdResult::SetM(Ok(()))
 		},
-		_ => unimplemented!(),
+		SetNx(key, field, value) => {
+			let fields_key = format!("kh-fields-{}", key);
+			let mut fields = match node.get(&fields_key).await {
+				Ok(fields) => {
+					str::from_utf8(&fields)
+						.unwrap()
+						.split(",,")
+						.map(|s| s.into())
+						.collect()
+				},
+				Err(err) => match err {
+					GetError::NotFound => Vec::<String>::new(),
+					GetError::QuorumFailed => return HashCmdResult::SetNx(Err(HSetError::FieldsQuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => return HashCmdResult::SetNx(Err(HSetError::FieldsTimeout {
+						key: key.into(),
+					})),
+				},
+			};
+			let exists = fields.contains(&field.into());
+
+			if !exists {
+				let hash_key = format!("kh-{}-{}", key, field);
+				match node.put(&hash_key, value).await {
+					Ok(()) => fields.push(field.into()),
+					Err(err) => return match err {
+						PutError::QuorumFailed => HashCmdResult::SetNx(Err(HSetError::QuorumFailed {
+							key: key.into(),
+							field: field.into(),
+						})),
+						PutError::Timeout => HashCmdResult::SetNx(Err(HSetError::Timeout {
+							key: key.into(),
+							field: field.into(),
+						})),
+					}
+				}
+
+				let fields = fields.join(",,");
+				let fields = fields.as_bytes().to_vec();
+
+				match node.put(&fields_key, fields).await {
+					Ok(_) => (),
+					Err(err) => return match err {
+						PutError::QuorumFailed => HashCmdResult::SetNx(Err(HSetError::FieldsQuorumFailed {
+							key: key.into(),
+						})),
+						PutError::Timeout => HashCmdResult::SetNx(Err(HSetError::FieldsTimeout {
+							key: key.into(),
+						})),
+					}
+				}
+			}
+		
+			HashCmdResult::SetNx(Ok(()))
+		},
+		Vals(key) => {
+			let hash_key = format!("kh-fields-{}", key);
+			let fields = match get_fields(node, &hash_key).await {
+				Ok(fields) => fields,
+				Err(err) => return match err {
+					GetError::NotFound => HashCmdResult::Vals(Err(HValsError::KeyNotFound {
+						key: key.into(),
+					})),
+					GetError::QuorumFailed => HashCmdResult::Vals(Err(HValsError::FieldsQuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => HashCmdResult::Vals(Err(HValsError::FieldsTimeout {
+						key: key.into(),
+					})),
+				},
+			};
+
+			let mut values = Vec::new();
+
+			for field in fields {
+				let hash_key = format!("kh-{}-{}", key, field);
+				let value = match node.get(&hash_key).await {
+					Ok(data) => data,
+					Err(err) => return match err {
+						GetError::NotFound => HashCmdResult::Vals(Err(HValsError::NotFound {
+							key: key.into(),
+							field,
+						})),
+						GetError::QuorumFailed => HashCmdResult::Vals(Err(HValsError::QuorumFailed {
+							key: key.into(),
+							field,
+						})),
+						GetError::Timeout => HashCmdResult::Vals(Err(HValsError::Timeout {
+							key: key.into(),
+							field,
+						})),
+					},
+				};
+				values.push(value);
+			}
+
+			HashCmdResult::Vals(Ok(values))
+		},
 	}
 }

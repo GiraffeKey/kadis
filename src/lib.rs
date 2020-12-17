@@ -151,7 +151,6 @@ impl Kadis {
             },
             _ => unreachable!(),
         }
-        
     }
 
     pub async fn hgetall<T>(&mut self, key: &str) -> Result<HashMap<String, T>, HGetAllError>
@@ -186,6 +185,22 @@ impl Kadis {
         }
     }
 
+    pub async fn hkeys(&mut self, key: &str) -> Result<Vec<String>, HKeysError> {
+        let cmd = Cmd::Hash(HashCmd::Keys(key));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::Hash(HashCmdResult::Keys(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn hlen(&mut self, key: &str) -> Result<usize, HLenError> {
+        let cmd = Cmd::Hash(HashCmd::Len(key));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::Hash(HashCmdResult::Len(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
     pub async fn hset<T>(&mut self, key: &str, field: &str, value: T) -> Result<(), HSetError>
     where T: Serialize {
         let value = bincode::serialize(&value).unwrap();
@@ -202,6 +217,30 @@ impl Kadis {
         let cmd = Cmd::Hash(HashCmd::SetM(key, fields, values));
         match handle_cmd(&mut self.node, cmd).await {
             CmdResult::Hash(HashCmdResult::SetM(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn hsetnx<T>(&mut self, key: &str, field: &str, value: T) -> Result<(), HSetError>
+    where T: Serialize {
+        let value = bincode::serialize(&value).unwrap();
+        let cmd = Cmd::Hash(HashCmd::SetNx(key, field, value));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::Hash(HashCmdResult::SetNx(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn hvals<T>(&mut self, key: &str) -> Result<Vec<T>, HValsError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::Hash(HashCmd::Vals(key));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::Hash(HashCmdResult::Vals(res)) => match res {
+                Ok(data) => Ok(data.iter()
+                    .map(|d| bincode::deserialize(d).unwrap())
+                    .collect()),
+                Err(err) => Err(err),
+            },
             _ => unreachable!(),
         }
     }

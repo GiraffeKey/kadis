@@ -104,12 +104,28 @@ pub enum HIncrError {
 
 #[derive(Debug)]
 pub enum HKeysError {
-	
+	NotFound {
+		key: String,
+	},
+	QuorumFailed {
+		key: String,
+	},
+	Timeout {
+		key: String,
+	},
 }
 
 #[derive(Debug)]
 pub enum HLenError {
-	
+	NotFound {
+		key: String,
+	},
+	QuorumFailed {
+		key: String,
+	},
+	Timeout {
+		key: String,
+	},
 }
 
 #[derive(Debug)]
@@ -131,18 +147,28 @@ pub enum HSetError {
 }
 
 #[derive(Debug)]
-pub enum HSetNxError {
-	
-}
-
-#[derive(Debug)]
-pub enum HStrLenError {
-	
-}
-
-#[derive(Debug)]
 pub enum HValsError {
-	
+	KeyNotFound {
+		key: String,
+	},
+	FieldsQuorumFailed {
+		key: String,
+	},
+	FieldsTimeout {
+		key: String,
+	},
+	NotFound {
+		key: String,
+		field: String,
+	},
+	QuorumFailed {
+		key: String,
+		field: String,
+	},
+	Timeout {
+		key: String,
+		field: String,
+	},
 }
 
 pub enum HashCmdResult {
@@ -156,7 +182,6 @@ pub enum HashCmdResult {
 	Len(Result<usize, HLenError>),
 	Set(Result<(), HSetError>),
 	SetM(Result<(), HSetError>),
-	SetNx(Result<(), HSetNxError>),
-	StrLen(Result<usize, HStrLenError>),
+	SetNx(Result<(), HSetError>),
 	Vals(Result<Vec<Vec<u8>>, HValsError>),
 }
