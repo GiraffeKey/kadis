@@ -16,7 +16,9 @@
 
 use std::str;
 
+use crate::get_list;
 use crate::node::{Node, GetError};
+use crate::util::split_list;
 
 mod error;
 #[cfg(test)]
@@ -42,33 +44,11 @@ pub enum ListCmd<'a> {
 
 use ListCmd::*;
 
-async fn get_list(node: &mut Node, key: &str) -> Result<Vec<String>, GetError> {
-	let list = match node.get(&key).await {
-		Ok(list) => list,
-		Err(err) => return Err(err),
-	};
-	let list = str::from_utf8(&list).unwrap().split(",").map(|s| s.into()).collect();
-	Ok(list)
-}
-
 pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult {
 	match cmd {
 		Index(key, index) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = match get_list(node, &items_key).await {
-				Ok(list) => list,
-				Err(err) => return match err {
-					GetError::NotFound => ListCmdResult::Index(Err(LIndexError::KeyNotFound {
-						key: key.into(),
-					})),
-					GetError::QuorumFailed => ListCmdResult::Index(Err(LIndexError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					GetError::Timeout => ListCmdResult::Index(Err(LIndexError::KeyTimeout {
-						key: key.into(),
-					})),
-				},
-			};
+			let list = get_list!(node, items_key, ListCmdResult, Index, LIndexError);
 
 			let id = match list.get(index) {
 				Some(id) => id,
@@ -98,6 +78,12 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			};
 
 			ListCmdResult::Index(Ok(item))
+		},
+		Push(key, item, right) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Push, LPushError);
+
+			ListCmdResult::Push(Ok(()))
 		},
 		_ => unimplemented!(),
 	}

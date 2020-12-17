@@ -23,6 +23,7 @@ use serde::{de::DeserializeOwned, Serialize};
 mod node;
 mod hash;
 mod list;
+mod util;
 
 use node::{Node, NodeInitError};
 use hash::*;
@@ -260,5 +261,25 @@ impl Kadis {
             },
             _ => unreachable!(),
         }
+    }
+
+    async fn lrpush<T>(&mut self, key: &str, item: T, right: bool) -> Result<(), LPushError>
+    where T: Serialize {
+        let item = bincode::serialize(&item).unwrap();
+        let cmd = Cmd::List(ListCmd::Push(key, item, right));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Push(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn lpush<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
+    where T: Serialize {
+        self.lrpush(key, item, false).await
+    }
+
+    pub async fn rpush<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
+    where T: Serialize {
+        self.lrpush(key, item, true).await
     }
 }
