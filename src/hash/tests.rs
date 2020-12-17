@@ -28,7 +28,7 @@ struct Cat {
 #[test]
 fn hash() {
 	let _ = KadisBuilder::default().port(5130).init().unwrap();
-	for _ in 0..50 {
+	for _ in 0..30 {
 		KadisBuilder::default().bootstraps(&["/ip4/0.0.0.0/tcp/5130"]).init().unwrap();
 	}
 
