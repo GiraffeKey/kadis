@@ -23,7 +23,6 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
 use async_std::task;
 use fnv::FnvHashMap;
 use futures::prelude::*;
@@ -56,14 +55,44 @@ use libp2p::{
     identity,
 };
 
-use crate::util::CmdResult;
+#[derive(Clone)]
+pub enum GetError {
+    NotFound,
+    QuorumFailed,
+    Timeout,
+}
+
+#[derive(Clone)]
+pub enum PutError {
+    QuorumFailed,
+    Timeout,
+}
+
+#[derive(Clone)]
+pub enum EventResult {
+    Get(Result<Vec<u8>, GetError>),
+    Put(Result<(), PutError>),
+}
+
+#[derive(Debug)]
+pub enum NodeInitError {
+    ParseAddress {
+        address: String,
+    },
+    ParseBootstrap {
+        address: String,
+    },
+    DialAddr {
+        address: String,
+    },
+}
 
 #[derive(NetworkBehaviour)]
 struct Behaviour {
     kademlia: Kademlia<MemoryStore>,
     mdns: Mdns,
     #[behaviour(ignore)]
-    event_results: FnvHashMap<String, CmdResult>,
+    event_results: FnvHashMap<String, EventResult>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for Behaviour {
@@ -85,31 +114,31 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for Behaviour {
                     let key = std::str::from_utf8(record.key.as_ref()).unwrap();
                     let name = format!("get-{}", key);
                     let value = record.value.clone();
-                    self.event_results.insert(name, CmdResult::Get(Ok(value)));
+                    self.event_results.insert(name, EventResult::Get(Ok(value)));
                 },
                 QueryResult::GetRecord(Err(err)) => {
                     let (key, err) = match err {
-                        GetRecordError::NotFound { key, .. } => (key, anyhow!("Not found")),
-                        GetRecordError::QuorumFailed { key, .. } => (key, anyhow!("Quorum failed")),
-                        GetRecordError::Timeout { key, .. } => (key, anyhow!("Timed out")),
+                        GetRecordError::NotFound { key, .. } => (key, GetError::NotFound),
+                        GetRecordError::QuorumFailed { key, .. } => (key, GetError::QuorumFailed),
+                        GetRecordError::Timeout { key, .. } => (key, GetError::Timeout),
                     };
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("get-{}", key);
-                    self.event_results.insert(name, CmdResult::Get(Err(err)));
+                    self.event_results.insert(name, EventResult::Get(Err(err)));
                 },
                 QueryResult::PutRecord(Ok(PutRecordOk { key })) => {
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("put-{}", key);
-                    self.event_results.insert(name, CmdResult::Put(Ok(())));
+                    self.event_results.insert(name, EventResult::Put(Ok(())));
                 },
                 QueryResult::PutRecord(Err(err)) => {
                     let (key, err) = match err {
-                        PutRecordError::QuorumFailed { key, .. } => (key, anyhow!("Quorum failed")),
-                        PutRecordError::Timeout { key, .. } => (key, anyhow!("Timed out")),
+                        PutRecordError::QuorumFailed { key, .. } => (key, PutError::QuorumFailed),
+                        PutRecordError::Timeout { key, .. } => (key, PutError::Timeout),
                     };
                     let key = std::str::from_utf8(key.as_ref()).unwrap();
                     let name = format!("put-{}", key);
-                    self.event_results.insert(name, CmdResult::Get(Err(err)));
+                    self.event_results.insert(name, EventResult::Put(Err(err)));
                 },
                 _ => (),
             },
@@ -124,16 +153,17 @@ pub struct Node {
 }
 
 impl Node {
-	pub fn new(bootstraps: &[&str], port: u16, cache_lifetime: u64) -> Result<Self> {
+	pub fn new(bootstraps: &[&str], port: u16, cache_lifetime: u64) -> Result<Self, NodeInitError> {
 	    let local_key = identity::Keypair::generate_ed25519();
 	    let local_peer_id = PeerId::from(local_key.public());
 
 	    let transport = {
-		    let dh_keys = noise::Keypair::<X25519Spec>::new().into_authentic(&local_key)?;
+		    let dh_keys = noise::Keypair::<X25519Spec>::new().into_authentic(&local_key).unwrap();
 		    let noise = NoiseConfig::xx(dh_keys).into_authenticated();
 		    let tcp = TcpConfig::new();
 
-	    	DnsConfig::new(tcp)?
+	    	DnsConfig::new(tcp)
+                .unwrap()
 		        .upgrade(Version::V1)
 		        .authenticate(noise)
 		        .multiplex(SelectUpgrade::new(
@@ -148,16 +178,27 @@ impl Node {
 	    	let store = MemoryStore::new(local_peer_id.clone());
             let event_results = FnvHashMap::default();
 		    let kademlia = Kademlia::new(local_peer_id.clone(), store);
-		    let mdns = task::block_on(Mdns::new())?;
+		    let mdns = task::block_on(Mdns::new()).unwrap();
 		    let behaviour = Behaviour { event_results, kademlia, mdns };
 		    Swarm::new(transport, behaviour, local_peer_id)
 		};
 
         let address = format!("/ip4/0.0.0.0/tcp/{}", port);
-	    Swarm::listen_on(&mut swarm, address.parse()?)?;
+        let address = match address.parse() {
+            Ok(address) => address,
+            Err(_) => return Err(NodeInitError::ParseAddress { address }),
+        };
+	    Swarm::listen_on(&mut swarm, address).unwrap();
 
-        for bootstrap in bootstraps {
-            Swarm::dial_addr(&mut swarm, bootstrap.parse()?)?;
+        for address in bootstraps {
+            let dial_address = match address.parse() {
+                Ok(address) => address,
+                Err(_) => return Err(NodeInitError::ParseBootstrap { address: address.to_string() }),
+            };
+            match Swarm::dial_addr(&mut swarm, dial_address) {
+                Ok(_) => (),
+                Err(_) => return Err(NodeInitError::DialAddr { address: address.to_string() }),
+            }
         }
 
         let swarm = Arc::new(Mutex::new(swarm));
@@ -165,7 +206,7 @@ impl Node {
 
 	    let mut listening = false;
         let swarm_clone = swarm.clone();
-	    task::spawn(future::poll_fn(move |cx: &mut Context<'_>| -> Poll<Result<()>> {
+	    task::spawn(future::poll_fn(move |cx: &mut Context<'_>| -> Poll<Result<(), ()>> {
 	        loop {
                 let mut swarm = swarm_clone.lock().unwrap();
 	            match swarm.poll_next_unpin(cx) {
@@ -204,7 +245,7 @@ impl Node {
 	    })
 	}
 
-    fn wait_for_result(&self, name: String) -> CmdResult {
+    fn wait_for_result(&self, name: String) -> EventResult {
         loop {
             let event_results = &mut self.swarm.lock().unwrap().event_results;
             match event_results.get(&name) {
@@ -218,7 +259,7 @@ impl Node {
         }
     }
 
-	pub async fn get(&mut self, key: &str) -> CmdResult {
+	pub async fn get(&mut self, key: &str) -> Result<Vec<u8>, GetError> {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -226,21 +267,24 @@ impl Node {
         }
 
         if let Some(value) = self.cache.lock().unwrap().get(key) {
-            return CmdResult::Get(Ok(value.clone()));
+            return Ok(value.clone());
         }
 
         let name = format!("get-{}", key);
         let res = self.wait_for_result(name);
         match res {
-            CmdResult::Get(Ok(ref value)) => {
-                self.cache.lock().unwrap().insert(key.into(), value.clone());
+            EventResult::Get(res) => match res {
+                Ok(value) => {
+                    self.cache.lock().unwrap().insert(key.into(), value.clone());
+                    Ok(value)
+                },
+                Err(err) => Err(err),
             },
-            _ => (),
+            _ => unreachable!(),
         }
-        res
 	}
 
-	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> CmdResult {
+	pub async fn put(&mut self, key: &str, value: Vec<u8>) -> Result<(), PutError> {
         {
             let kademlia = &mut self.swarm.lock().unwrap().kademlia;
             let key = Key::new(&key);
@@ -256,12 +300,15 @@ impl Node {
         let name = format!("put-{}", key);
         let res = self.wait_for_result(name);
         match res {
-            CmdResult::Put(Ok(())) => {
-                self.cache.lock().unwrap().insert(key.into(), value);
+            EventResult::Put(res) => match res {
+                Ok(()) => {
+                    self.cache.lock().unwrap().insert(key.into(), value);
+                    Ok(())
+                },
+                Err(err) => Err(err),
             },
-            _ => (),
+            _ => unreachable!(),
         }
-        res
 	}
 
     pub fn remove(&mut self, key: &str) {
