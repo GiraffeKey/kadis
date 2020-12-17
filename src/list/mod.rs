@@ -29,11 +29,12 @@ mod tests;
 pub use error::*;
 
 pub enum ListCmd<'a> {
+	Collect(&'a str),
 	Index(&'a str, usize),
 	Insert(&'a str, usize, Vec<u8>, bool),
 	Len(&'a str),
 	Pop(&'a str, bool),
-	Pos(&'a str, Vec<u8>, u32),
+	Pos(&'a str, Vec<u8>, i32),
 	Push(&'a str, Vec<u8>, bool),
 	PushX(&'a str, Vec<u8>, bool),
 	Range(&'a str, usize, usize),
@@ -125,6 +126,97 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			join_list!(node, items_key, list, ListCmdResult, Insert, LInsertError);
 
 			ListCmdResult::Insert(Ok(()))
+		},
+		Len(key) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Len, LLenError);
+			ListCmdResult::Len(Ok(list.len()))
+		},
+		Pop(key, right) => {
+			let items_key = format!("kl-items-{}", key);
+			let mut list = get_list!(node, items_key, ListCmdResult, Pop, LPopError);
+
+			if list.len() == 0 {
+				return ListCmdResult::Pop(Err(LPopError::EmptyList {
+					key: key.into(),
+				}))
+			}
+
+			let index = if right {
+				list.len() - 1
+			} else {
+				0
+			};
+
+			let id = list.remove(index);
+
+			let item_key = format!("kl-{}", id);
+			let item = match node.get(&item_key).await {
+				Ok(data) => data,
+				Err(err) => return match err {
+					GetError::NotFound => ListCmdResult::Pop(Err(LPopError::NotFound {
+						key: key.into(),
+						index,
+					})),
+					GetError::QuorumFailed => ListCmdResult::Pop(Err(LPopError::QuorumFailed {
+						key: key.into(),
+						index,
+					})),
+					GetError::Timeout => ListCmdResult::Pop(Err(LPopError::Timeout {
+						key: key.into(),
+						index,
+					})),
+				},
+			};
+
+			join_list!(node, items_key, list, ListCmdResult, Pop, LPopError);
+
+			ListCmdResult::Pop(Ok(item))
+		},
+		Pos(key, test_item, rank) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Pos, LPosError);
+
+			let list = if rank > 0 {
+				list
+			} else if rank < 0 {
+				list.iter().rev().map(|s| s.into()).collect()
+			} else {
+				return ListCmdResult::Pos(Err(LPosError::RankZero {
+					key: key.into(),
+				}));
+			};
+
+			let mut found = 0;
+
+			for (index, id) in list.iter().enumerate() {
+				let item_key = format!("kl-{}", id);
+				let item = match node.get(&item_key).await {
+					Ok(data) => data,
+					Err(err) => return match err {
+						GetError::NotFound => ListCmdResult::Pos(Err(LPosError::NotFound {
+							key: key.into(),
+							index,
+						})),
+						GetError::QuorumFailed => ListCmdResult::Pos(Err(LPosError::QuorumFailed {
+							key: key.into(),
+							index,
+						})),
+						GetError::Timeout => ListCmdResult::Pos(Err(LPosError::Timeout {
+							key: key.into(),
+							index,
+						})),
+					},
+				};
+				if item == test_item {
+					found += 1;
+					if found == rank.abs() {
+						return ListCmdResult::Pos(Ok(Some(index)));
+					}
+				}
+			}
+
+			ListCmdResult::Pos(Ok(None))
 		},
 		Push(key, item, right) => {
 			let items_key = format!("kl-items-{}", key);

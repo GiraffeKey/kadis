@@ -283,6 +283,51 @@ impl Kadis {
         self.linsert(key, index, item, true).await
     }
 
+    pub async fn llen(&mut self, key: &str) -> Result<usize, LLenError>  {
+        let cmd = Cmd::List(ListCmd::Len(key));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Len(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    async fn lrpop<T>(&mut self, key: &str, right: bool) -> Result<T, LPopError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::List(ListCmd::Pop(key, right));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Pop(res)) => match res {
+                Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
+                Err(err) => Err(err),
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn lpop<T>(&mut self, key: &str) -> Result<T, LPopError>
+    where T: DeserializeOwned {
+        self.lrpop(key, false).await
+    }
+
+    pub async fn rpop<T>(&mut self, key: &str) -> Result<T, LPopError>
+    where T: DeserializeOwned {
+        self.lrpop(key, true).await
+    }
+
+    pub async fn lpos_rank<T>(&mut self, key: &str, item: T, rank: i32) -> Result<Option<usize>, LPosError>
+    where T: Serialize {
+        let item = bincode::serialize(&item).unwrap();
+        let cmd = Cmd::List(ListCmd::Pos(key, item, rank));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Pos(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn lpos<T>(&mut self, key: &str, item: T) -> Result<Option<usize>, LPosError>
+    where T: Serialize {
+        self.lpos_rank(key, item, 1).await
+    }
+
     async fn lrpush<T>(&mut self, key: &str, item: T, right: bool) -> Result<(), LPushError>
     where T: Serialize {
         let item = bincode::serialize(&item).unwrap();

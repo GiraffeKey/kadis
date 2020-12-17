@@ -52,5 +52,41 @@ fn list() {
 		let res = kadis.lindex::<Cat>("cats", 1).await;
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), cat);
+
+		let cat = Cat {
+			name: "Herbie".into(),
+			color: "yellow".into(),
+		};
+		let res = kadis.linsert_before("cats", 1, &cat).await;
+		assert!(res.is_ok());
+
+		let res = kadis.lindex::<Cat>("cats", 1).await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), cat);
+
+		let res = kadis.lpop::<Cat>("cats").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), Cat {
+			name: "Kirby".into(),
+			color: "gray".into(),
+		});
+
+		let res = kadis.rpop::<Cat>("cats").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), Cat {
+			name: "Ferb".into(),
+			color: "black".into(),
+		});
+
+		let res = kadis.llen("cats").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), 2);
+
+		let res = kadis.lpos("cats", Cat {
+			name: "Herbert".into(),
+			color: "orange".into(),
+		}).await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), Some(1));
 	});
 }

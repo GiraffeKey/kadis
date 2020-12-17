@@ -66,6 +66,75 @@ pub enum LInsertError {
 }
 
 #[derive(Debug)]
+pub enum LPopError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	EmptyList {
+		key: String,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
+pub enum LPosError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	RankZero {
+		key: String,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
+pub enum LLenError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+}
+
+#[derive(Debug)]
 pub enum LPushError {
 	KeyNotFound {
 		key: String,
@@ -85,11 +154,12 @@ pub enum LPushError {
 }
 
 pub enum ListCmdResult {
+	// Collect(Result<Vec<Vec<u8>>, LCollectError>),
 	Index(Result<Vec<u8>, LIndexError>),
 	Insert(Result<(), LInsertError>),
-	// Len(Result<usize, LLenError>),
-	// Pop(Result<Vec<u8>, LPopError>),
-	// Pos(Result<usize, LPosError>),
+	Len(Result<usize, LLenError>),
+	Pop(Result<Vec<u8>, LPopError>),
+	Pos(Result<Option<usize>, LPosError>),
 	Push(Result<(), LPushError>),
 	PushX(Result<(), LPushError>),
 	// Range(Result<Vec<Vec<u8>>, LRangeError>),
