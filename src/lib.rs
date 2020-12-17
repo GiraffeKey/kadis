@@ -283,3 +283,11 @@ impl Kadis {
         self.lrpush(key, item, true).await
     }
 }
+
+#[cfg(test)]
+fn main() {
+    let _ = KadisBuilder::default().port(5130).init().unwrap();
+    for _ in 0..30 {
+        KadisBuilder::default().bootstraps(&["/ip4/0.0.0.0/tcp/5130"]).init().unwrap();
+    }
+}

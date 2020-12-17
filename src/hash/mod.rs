@@ -19,7 +19,7 @@ use std::{
 	str,
 };
 
-use crate::get_list;
+use crate::{get_list, get_list_exists, join_list};
 use crate::node::{Node, GetError, PutError};
 use crate::util::split_list;
 
@@ -229,28 +229,11 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 		},
 		Set(key, field, value) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut fields = match node.get(&fields_key).await {
-				Ok(fields) => {
-					str::from_utf8(&fields)
-						.unwrap()
-						.split(",")
-						.map(|s| s.into())
-						.collect()
-				},
-				Err(err) => match err {
-					GetError::NotFound => Vec::<String>::new(),
-					GetError::QuorumFailed => return HashCmdResult::Set(Err(HSetError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					GetError::Timeout => return HashCmdResult::Set(Err(HSetError::KeyTimeout {
-						key: key.into(),
-					})),
-				},
-			};
+			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, Set, HSetError);
 
 			let hash_key = format!("kh-{}-{}", key, field);
 			match node.put(&hash_key, value).await {
-				Ok(()) => fields.push(field.into()),
+				Ok(()) => hash_fields.push(field.into()),
 				Err(err) => return match err {
 					PutError::QuorumFailed => HashCmdResult::Set(Err(HSetError::QuorumFailed {
 						key: key.into(),
@@ -263,43 +246,13 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			let fields = fields.join(",");
-			let fields = fields.as_bytes().to_vec();
-
-			match node.put(&fields_key, fields).await {
-				Ok(_) => (),
-				Err(err) => return match err {
-					PutError::QuorumFailed => HashCmdResult::Set(Err(HSetError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					PutError::Timeout => HashCmdResult::Set(Err(HSetError::KeyTimeout {
-						key: key.into(),
-					})),
-				}
-			}
+			join_list!(node, fields_key, hash_fields, HashCmdResult, Set, HSetError);
 		
 			HashCmdResult::Set(Ok(()))
 		},
 		SetM(key, fields, values) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut hash_fields = match node.get(&fields_key).await {
-				Ok(fields) => {
-					str::from_utf8(&fields)
-						.unwrap()
-						.split(",")
-						.map(|s| s.into())
-						.collect()
-				},
-				Err(err) => match err {
-					GetError::NotFound => Vec::<String>::new(),
-					GetError::QuorumFailed => return HashCmdResult::SetM(Err(HSetError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					GetError::Timeout => return HashCmdResult::SetM(Err(HSetError::KeyTimeout {
-						key: key.into(),
-					})),
-				},
-			};
+			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, SetM, HSetError);
 
 			for i in 0..fields.len() {
 				let field = fields[i];
@@ -320,49 +273,19 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			let hash_fields = hash_fields.join(",");
-			let hash_fields = hash_fields.as_bytes().to_vec();
-
-			match node.put(&fields_key, hash_fields).await {
-				Ok(_) => (),
-				Err(err) => return match err {
-					PutError::QuorumFailed => HashCmdResult::SetM(Err(HSetError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					PutError::Timeout => HashCmdResult::SetM(Err(HSetError::KeyTimeout {
-						key: key.into(),
-					})),
-				}
-			}
+			join_list!(node, fields_key, hash_fields, HashCmdResult, SetM, HSetError);
 		
 			HashCmdResult::SetM(Ok(()))
 		},
 		SetNx(key, field, value) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut fields = match node.get(&fields_key).await {
-				Ok(fields) => {
-					str::from_utf8(&fields)
-						.unwrap()
-						.split(",")
-						.map(|s| s.into())
-						.collect()
-				},
-				Err(err) => match err {
-					GetError::NotFound => Vec::<String>::new(),
-					GetError::QuorumFailed => return HashCmdResult::SetNx(Err(HSetError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					GetError::Timeout => return HashCmdResult::SetNx(Err(HSetError::KeyTimeout {
-						key: key.into(),
-					})),
-				},
-			};
-			let exists = fields.contains(&field.into());
+			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, SetNx, HSetError);
+			let exists = hash_fields.contains(&field.into());
 
 			if !exists {
 				let hash_key = format!("kh-{}-{}", key, field);
 				match node.put(&hash_key, value).await {
-					Ok(()) => fields.push(field.into()),
+					Ok(()) => hash_fields.push(field.into()),
 					Err(err) => return match err {
 						PutError::QuorumFailed => HashCmdResult::SetNx(Err(HSetError::QuorumFailed {
 							key: key.into(),
@@ -375,20 +298,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 					}
 				}
 
-				let fields = fields.join(",");
-				let fields = fields.as_bytes().to_vec();
-
-				match node.put(&fields_key, fields).await {
-					Ok(_) => (),
-					Err(err) => return match err {
-						PutError::QuorumFailed => HashCmdResult::SetNx(Err(HSetError::KeyQuorumFailed {
-							key: key.into(),
-						})),
-						PutError::Timeout => HashCmdResult::SetNx(Err(HSetError::KeyTimeout {
-							key: key.into(),
-						})),
-					}
-				}
+				join_list!(node, fields_key, hash_fields, HashCmdResult, SetNx, HSetError);
 			}
 		
 			HashCmdResult::SetNx(Ok(()))

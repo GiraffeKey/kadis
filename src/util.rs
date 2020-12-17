@@ -41,3 +41,45 @@ macro_rules! get_list {
         }
     };
 }
+
+#[macro_export]
+macro_rules! get_list_exists {
+    ( $node:expr, $key:expr, $result:ident, $variant:ident, $error:ident ) => {
+        {
+            match $node.get(&$key).await {
+				Ok(list) => split_list(list),
+				Err(err) => match err {
+					GetError::NotFound => Vec::<String>::new(),
+					GetError::QuorumFailed => return $result::$variant(Err($error::KeyQuorumFailed {
+						key: $key.into(),
+					})),
+					GetError::Timeout => return $result::$variant(Err($error::KeyTimeout {
+						key: $key.into(),
+					})),
+				},
+			}
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! join_list {
+    ( $node:expr, $key:expr, $list:expr, $result:ident, $variant:ident, $error:ident ) => {
+        {
+            let list = $list.join(",");
+			let list = list.as_bytes().to_vec();
+
+			match $node.put(&$key, list).await {
+				Ok(_) => (),
+				Err(err) => return match err {
+					PutError::QuorumFailed => $result::$variant(Err($error::KeyQuorumFailed {
+						key: $key.into(),
+					})),
+					PutError::Timeout => $result::$variant(Err($error::KeyTimeout {
+						key: $key.into(),
+					})),
+				}
+			}
+        }
+    };
+}

@@ -16,8 +16,10 @@
 
 use std::str;
 
-use crate::get_list;
-use crate::node::{Node, GetError};
+use uuid::Uuid;
+
+use crate::{get_list, get_list_exists, join_list};
+use crate::node::{Node, GetError, PutError};
 use crate::util::split_list;
 
 mod error;
@@ -43,6 +45,10 @@ pub enum ListCmd<'a> {
 }
 
 use ListCmd::*;
+
+fn id() -> String {
+	Uuid::new_v4().to_string()
+}
 
 pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult {
 	match cmd {
@@ -81,7 +87,30 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 		},
 		Push(key, item, right) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Push, LPushError);
+			let mut list = get_list_exists!(node, items_key, ListCmdResult, Push, LPushError);
+
+			let id = id();
+			let item_key = format!("kl-{}", id);
+
+			match node.put(&item_key, item).await {
+				Ok(_) => (),
+				Err(err) => return match err {
+					PutError::QuorumFailed => ListCmdResult::Push(Err(LPushError::QuorumFailed {
+						key: key.into(),
+					})),
+					PutError::Timeout => ListCmdResult::Push(Err(LPushError::Timeout {
+						key: key.into(),
+					})),
+				}
+			}
+
+			if right {
+				list.push(id);
+			} else {
+				list.insert(0, id);
+			}
+
+			join_list!(node, items_key, list, ListCmdResult, Push, LPushError);
 
 			ListCmdResult::Push(Ok(()))
 		},

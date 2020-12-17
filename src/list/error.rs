@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+#[derive(Debug)]
 pub enum LIndexError {
 	KeyNotFound {
 		key: String,
@@ -38,7 +39,7 @@ pub enum LIndexError {
 	},
 }
 
-
+#[derive(Debug)]
 pub enum LPushError {
 	KeyNotFound {
 		key: String,
@@ -51,11 +52,9 @@ pub enum LPushError {
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
 	},
 }
 
