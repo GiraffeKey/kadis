@@ -49,7 +49,7 @@ async fn get_fields(node: &mut Node, key: &str) -> Result<Vec<String>, GetError>
 		Ok(fields) => fields,
 		Err(err) => return Err(err),
 	};
-	let fields = str::from_utf8(&fields).unwrap().split(",,").map(|s| s.into()).collect();
+	let fields = str::from_utf8(&fields).unwrap().split(",").map(|s| s.into()).collect();
 	Ok(fields)
 }
 
@@ -78,7 +78,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				.filter(|s| !fields.contains(&s.as_str()))
 				.map(|s| s.into())
 				.collect::<Vec<String>>()
-				.join(",,");
+				.join(",");
 			let hash_fields = hash_fields.as_bytes().to_vec();
 
 			match node.put(&fields_key, hash_fields).await {
@@ -289,7 +289,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				Ok(fields) => {
 					str::from_utf8(&fields)
 						.unwrap()
-						.split(",,")
+						.split(",")
 						.map(|s| s.into())
 						.collect()
 				},
@@ -319,7 +319,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			let fields = fields.join(",,");
+			let fields = fields.join(",");
 			let fields = fields.as_bytes().to_vec();
 
 			match node.put(&fields_key, fields).await {
@@ -342,7 +342,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				Ok(fields) => {
 					str::from_utf8(&fields)
 						.unwrap()
-						.split(",,")
+						.split(",")
 						.map(|s| s.into())
 						.collect()
 				},
@@ -376,7 +376,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			let hash_fields = hash_fields.join(",,");
+			let hash_fields = hash_fields.join(",");
 			let hash_fields = hash_fields.as_bytes().to_vec();
 
 			match node.put(&fields_key, hash_fields).await {
@@ -399,7 +399,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				Ok(fields) => {
 					str::from_utf8(&fields)
 						.unwrap()
-						.split(",,")
+						.split(",")
 						.map(|s| s.into())
 						.collect()
 				},
@@ -431,7 +431,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 					}
 				}
 
-				let fields = fields.join(",,");
+				let fields = fields.join(",");
 				let fields = fields.as_bytes().to_vec();
 
 				match node.put(&fields_key, fields).await {

@@ -22,21 +22,26 @@ use serde::{de::DeserializeOwned, Serialize};
 
 mod node;
 mod hash;
+mod list;
 
 use node::{Node, NodeInitError};
 use hash::*;
+use list::*;
 
 pub enum Cmd<'a> {
 	Hash(HashCmd<'a>),
+    List(ListCmd<'a>),
 }
 
 pub enum CmdResult {
     Hash(HashCmdResult),
+    List(ListCmdResult),
 }
 
 async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> CmdResult {
 	match cmd {
-		Cmd::Hash(cmd) => CmdResult::Hash(handle_hash_cmd(node, cmd).await),
+        Cmd::Hash(cmd) => CmdResult::Hash(handle_hash_cmd(node, cmd).await),
+        Cmd::List(cmd) => CmdResult::List(handle_list_cmd(node, cmd).await),
 	}
 }
 
