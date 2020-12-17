@@ -42,17 +42,63 @@ pub enum ListCmd<'a> {
 
 use ListCmd::*;
 
-async fn get_elems(node: &mut Node, key: &str) -> Result<Vec<String>, GetError> {
-	let elems = match node.get(&key).await {
-		Ok(elems) => elems,
+async fn get_list(node: &mut Node, key: &str) -> Result<Vec<String>, GetError> {
+	let list = match node.get(&key).await {
+		Ok(list) => list,
 		Err(err) => return Err(err),
 	};
-	let elems = str::from_utf8(&elems).unwrap().split(",").map(|s| s.into()).collect();
-	Ok(elems)
+	let list = str::from_utf8(&list).unwrap().split(",").map(|s| s.into()).collect();
+	Ok(list)
 }
 
 pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult {
 	match cmd {
+		Index(key, index) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = match get_list(node, &items_key).await {
+				Ok(list) => list,
+				Err(err) => return match err {
+					GetError::NotFound => ListCmdResult::Index(Err(LIndexError::KeyNotFound {
+						key: key.into(),
+					})),
+					GetError::QuorumFailed => ListCmdResult::Index(Err(LIndexError::KeyQuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => ListCmdResult::Index(Err(LIndexError::KeyTimeout {
+						key: key.into(),
+					})),
+				},
+			};
+
+			let id = match list.get(index) {
+				Some(id) => id,
+				None => return ListCmdResult::Index(Err(LIndexError::NotFound {
+					key: key.into(),
+					index,
+				})),
+			};
+
+			let item_key = format!("kl-{}", id);
+			let item = match node.get(&item_key).await {
+				Ok(data) => data,
+				Err(err) => return match err {
+					GetError::NotFound => ListCmdResult::Index(Err(LIndexError::NotFound {
+						key: key.into(),
+						index,
+					})),
+					GetError::QuorumFailed => ListCmdResult::Index(Err(LIndexError::QuorumFailed {
+						key: key.into(),
+						index,
+					})),
+					GetError::Timeout => ListCmdResult::Index(Err(LIndexError::Timeout {
+						key: key.into(),
+						index,
+					})),
+				},
+			};
+
+			ListCmdResult::Index(Ok(item))
+		},
 		_ => unimplemented!(),
 	}
 }

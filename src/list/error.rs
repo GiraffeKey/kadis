@@ -15,7 +15,27 @@
 //
 
 pub enum LIndexError {
-
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
 }
 
 pub enum ListCmdResult {

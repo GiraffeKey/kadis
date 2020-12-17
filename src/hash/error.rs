@@ -18,13 +18,13 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum HDelError {
-	NotFound {
+	KeyNotFound {
 		key: String,
 	},
-	QuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	Timeout {
+	KeyTimeout {
 		key: String,
 	},
 }
@@ -62,10 +62,10 @@ pub enum HGetAllError {
 	KeyNotFound {
 		key: String,
 	},
-	FieldsQuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	FieldsTimeout {
+	KeyTimeout {
 		key: String,
 	},
 	NotFound {
@@ -104,26 +104,26 @@ pub enum HIncrError {
 
 #[derive(Debug)]
 pub enum HKeysError {
-	NotFound {
+	KeyNotFound {
 		key: String,
 	},
-	QuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	Timeout {
+	KeyTimeout {
 		key: String,
 	},
 }
 
 #[derive(Debug)]
 pub enum HLenError {
-	NotFound {
+	KeyNotFound {
 		key: String,
 	},
-	QuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	Timeout {
+	KeyTimeout {
 		key: String,
 	},
 }
@@ -138,10 +138,10 @@ pub enum HSetError {
 		key: String,
 		field: String,
 	},
-	FieldsQuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	FieldsTimeout {
+	KeyTimeout {
 		key: String,
 	},
 }
@@ -151,10 +151,10 @@ pub enum HValsError {
 	KeyNotFound {
 		key: String,
 	},
-	FieldsQuorumFailed {
+	KeyQuorumFailed {
 		key: String,
 	},
-	FieldsTimeout {
+	KeyTimeout {
 		key: String,
 	},
 	NotFound {

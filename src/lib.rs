@@ -249,4 +249,16 @@ impl Kadis {
             _ => unreachable!(),
         }
     }
+
+    pub async fn lindex<T>(&mut self, key: &str, index: usize) -> Result<T, LIndexError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::List(ListCmd::Index(key, index));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Index(res)) => match res {
+                Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
+                Err(err) => Err(err),
+            },
+            _ => unreachable!(),
+        }
+    }
 }
