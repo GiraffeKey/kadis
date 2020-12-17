@@ -60,21 +60,9 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 			let hash_fields = hash_fields.iter()
 				.filter(|s| !fields.contains(&s.as_str()))
 				.map(|s| s.into())
-				.collect::<Vec<String>>()
-				.join(",");
-			let hash_fields = hash_fields.as_bytes().to_vec();
-
-			match node.put(&fields_key, hash_fields).await {
-				Ok(_) => (),
-				Err(err) => return match err {
-					PutError::QuorumFailed => HashCmdResult::Del(Err(HDelError::KeyQuorumFailed {
-						key: key.into(),
-					})),
-					PutError::Timeout => HashCmdResult::Del(Err(HDelError::KeyTimeout {
-						key: key.into(),
-					})),
-				},
-			}
+				.collect::<Vec<String>>();
+			
+			join_list!(node, fields_key, hash_fields, HashCmdResult, Del, HDelError);
 
 			HashCmdResult::Del(Ok(()))
 		},

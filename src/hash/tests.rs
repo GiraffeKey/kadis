@@ -115,7 +115,7 @@ fn hash() {
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), 3);
 
-		let res = kadis.hsetnx("nums", "n2", 14f32).await;
+		let res = kadis.hset_nx("nums", "n2", 14f32).await;
 		assert!(res.is_ok());
 
 		let res = kadis.hget::<f32>("nums", "n2").await;

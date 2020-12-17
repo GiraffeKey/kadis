@@ -40,6 +40,32 @@ pub enum LIndexError {
 }
 
 #[derive(Debug)]
+pub enum LInsertError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	OutOfBounds {
+		key: String,
+		index: usize,
+		len: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
 pub enum LPushError {
 	KeyNotFound {
 		key: String,
@@ -60,12 +86,12 @@ pub enum LPushError {
 
 pub enum ListCmdResult {
 	Index(Result<Vec<u8>, LIndexError>),
-	// Insert(Result<(), LInsertError>),
+	Insert(Result<(), LInsertError>),
 	// Len(Result<usize, LLenError>),
 	// Pop(Result<Vec<u8>, LPopError>),
 	// Pos(Result<usize, LPosError>),
 	Push(Result<(), LPushError>),
-	// PushX(Result<(), LPushXError>),
+	PushX(Result<(), LPushError>),
 	// Range(Result<Vec<Vec<u8>>, LRangeError>),
 	// Rem(Result<(), LRemError>),
 	// Set(Result<(), LSetError>),

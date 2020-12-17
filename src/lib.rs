@@ -180,10 +180,10 @@ impl Kadis {
     }
 
     pub async fn hincr(&mut self, key: &str, field: &str, inc: u32) -> Result<(), HIncrError> {
-        self.hincrf(key, field, inc as f32).await
+        self.hincr_float(key, field, inc as f32).await
     }
 
-    pub async fn hincrf(&mut self, key: &str, field: &str, inc: f32) -> Result<(), HIncrError> {
+    pub async fn hincr_float(&mut self, key: &str, field: &str, inc: f32) -> Result<(), HIncrError> {
         let cmd = Cmd::Hash(HashCmd::Incr(key, field, inc));
         match handle_cmd(&mut self.node, cmd).await {
             CmdResult::Hash(HashCmdResult::Incr(res)) => res,
@@ -227,7 +227,7 @@ impl Kadis {
         }
     }
 
-    pub async fn hsetnx<T>(&mut self, key: &str, field: &str, value: T) -> Result<(), HSetError>
+    pub async fn hset_nx<T>(&mut self, key: &str, field: &str, value: T) -> Result<(), HSetError>
     where T: Serialize {
         let value = bincode::serialize(&value).unwrap();
         let cmd = Cmd::Hash(HashCmd::SetNx(key, field, value));
@@ -263,6 +263,26 @@ impl Kadis {
         }
     }
 
+    async fn linsert<T>(&mut self, key: &str, index: usize, item: T, after: bool) -> Result<(), LInsertError>
+    where T: Serialize {
+        let item = bincode::serialize(&item).unwrap();
+        let cmd = Cmd::List(ListCmd::Insert(key, index, item, after));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Insert(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn linsert_before<T>(&mut self, key: &str, index: usize, item: T) -> Result<(), LInsertError>
+    where T: Serialize {
+        self.linsert(key, index, item, false).await
+    }
+
+    pub async fn linsert_after<T>(&mut self, key: &str, index:usize, item: T) -> Result<(), LInsertError>
+    where T: Serialize {
+        self.linsert(key, index, item, true).await
+    }
+
     async fn lrpush<T>(&mut self, key: &str, item: T, right: bool) -> Result<(), LPushError>
     where T: Serialize {
         let item = bincode::serialize(&item).unwrap();
@@ -281,6 +301,26 @@ impl Kadis {
     pub async fn rpush<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
     where T: Serialize {
         self.lrpush(key, item, true).await
+    }
+
+    async fn lrpush_exists<T>(&mut self, key: &str, item: T, right: bool) -> Result<(), LPushError>
+    where T: Serialize {
+        let item = bincode::serialize(&item).unwrap();
+        let cmd = Cmd::List(ListCmd::PushX(key, item, right));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::PushX(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn lpush_exists<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
+    where T: Serialize {
+        self.lrpush_exists(key, item, false).await
+    }
+
+    pub async fn rpush_exists<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
+    where T: Serialize {
+        self.lrpush_exists(key, item, true).await
     }
 }
 

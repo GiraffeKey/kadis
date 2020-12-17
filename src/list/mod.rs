@@ -85,6 +85,47 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			ListCmdResult::Index(Ok(item))
 		},
+		Insert(key, index, item, after) => {
+			let items_key = format!("kl-items-{}", key);
+			let mut list = get_list!(node, items_key, ListCmdResult, Insert, LInsertError);
+
+			let index = if after {
+				index + 1
+			} else {
+				index
+			};
+
+			if index > list.len() {
+				return ListCmdResult::Insert(Err(LInsertError::OutOfBounds {
+					key: key.into(),
+					index,
+					len: list.len(),
+				}))
+			}
+
+			let id = id();
+			let item_key = format!("kl-{}", id);
+
+			match node.put(&item_key, item).await {
+				Ok(_) => (),
+				Err(err) => return match err {
+					PutError::QuorumFailed => ListCmdResult::Insert(Err(LInsertError::QuorumFailed {
+						key: key.into(),
+						index,
+					})),
+					PutError::Timeout => ListCmdResult::Insert(Err(LInsertError::Timeout {
+						key: key.into(),
+						index,
+					})),
+				}
+			}
+
+			list.insert(index, id);
+
+			join_list!(node, items_key, list, ListCmdResult, Insert, LInsertError);
+
+			ListCmdResult::Insert(Ok(()))
+		},
 		Push(key, item, right) => {
 			let items_key = format!("kl-items-{}", key);
 			let mut list = get_list_exists!(node, items_key, ListCmdResult, Push, LPushError);
@@ -113,6 +154,46 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			join_list!(node, items_key, list, ListCmdResult, Push, LPushError);
 
 			ListCmdResult::Push(Ok(()))
+		},
+		PushX(key, item, right) => {
+			let items_key = format!("kl-items-{}", key);
+			let mut list = match node.get(&items_key).await {
+				Ok(list) => split_list(list),
+				Err(err) => return match err {
+					GetError::NotFound => ListCmdResult::PushX(Ok(())),
+					GetError::QuorumFailed => ListCmdResult::PushX(Err(LPushError::KeyQuorumFailed {
+						key: key.into(),
+					})),
+					GetError::Timeout => ListCmdResult::PushX(Err(LPushError::KeyTimeout {
+						key: key.into(),
+					})),
+				},
+			};
+
+			let id = id();
+			let item_key = format!("kl-{}", id);
+
+			match node.put(&item_key, item).await {
+				Ok(_) => (),
+				Err(err) => return match err {
+					PutError::QuorumFailed => ListCmdResult::PushX(Err(LPushError::QuorumFailed {
+						key: key.into(),
+					})),
+					PutError::Timeout => ListCmdResult::PushX(Err(LPushError::Timeout {
+						key: key.into(),
+					})),
+				}
+			}
+
+			if right {
+				list.push(id);
+			} else {
+				list.insert(0, id);
+			}
+
+			join_list!(node, items_key, list, ListCmdResult, PushX, LPushError);
+
+			ListCmdResult::PushX(Ok(()))
 		},
 		_ => unimplemented!(),
 	}
