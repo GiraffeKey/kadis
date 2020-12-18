@@ -169,6 +169,8 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				},
 			};
 
+			node.remove(&item_key);
+
 			join_list!(node, items_key, list, ListCmdResult, Pop, LPopError);
 
 			ListCmdResult::Pop(Ok(item))

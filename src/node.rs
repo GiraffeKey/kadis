@@ -312,8 +312,11 @@ impl Node {
 	}
 
     pub fn remove(&mut self, key: &str) {
-        let kademlia = &mut self.swarm.lock().unwrap().kademlia;
-        let key = Key::new(&key);
-        kademlia.remove_record(&key);
+        {
+            let kademlia = &mut self.swarm.lock().unwrap().kademlia;
+            let key = Key::new(&key);
+            kademlia.remove_record(&key);
+        }
+        self.cache.lock().unwrap().remove(key.into());
     }
 }

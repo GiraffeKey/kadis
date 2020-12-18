@@ -65,7 +65,7 @@ impl<'a> KadisBuilder<'a> {
         Self {
             bootstraps: &[],
             port: 0,
-            cache_lifetime: 300,
+            cache_lifetime: 60,
         }
     }
 
