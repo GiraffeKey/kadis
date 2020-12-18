@@ -64,6 +64,23 @@ fn list() {
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), cat);
 
+		let res = kadis.lrange::<Cat>("cats", 1, 3).await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), vec![
+			Cat {
+				name: "Herbie".into(),
+				color: "yellow".into(),
+			},
+			Cat {
+				name: "Herbert".into(),
+				color: "orange".into(),
+			},
+			Cat {
+				name: "Ferb".into(),
+				color: "black".into(),
+			},
+		]);
+
 		let res = kadis.lpop::<Cat>("cats").await;
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), Cat {
@@ -81,6 +98,19 @@ fn list() {
 		let res = kadis.llen("cats").await;
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), 2);
+
+		let res = kadis.lcollect::<Cat>("cats").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), vec![
+			Cat {
+				name: "Herbie".into(),
+				color: "yellow".into(),
+			},
+			Cat {
+				name: "Herbert".into(),
+				color: "orange".into(),
+			},
+		]);
 
 		let res = kadis.lpos("cats", Cat {
 			name: "Herbert".into(),

@@ -15,6 +15,31 @@
 //
 
 #[derive(Debug)]
+pub enum LCollectError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
 pub enum LIndexError {
 	KeyNotFound {
 		key: String,
@@ -153,8 +178,37 @@ pub enum LPushError {
 	},
 }
 
+#[derive(Debug)]
+pub enum LRangeError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	OutOfBounds {
+		key: String,
+		len: usize,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
 pub enum ListCmdResult {
-	// Collect(Result<Vec<Vec<u8>>, LCollectError>),
+	Collect(Result<Vec<Vec<u8>>, LCollectError>),
 	Index(Result<Vec<u8>, LIndexError>),
 	Insert(Result<(), LInsertError>),
 	Len(Result<usize, LLenError>),
@@ -162,7 +216,7 @@ pub enum ListCmdResult {
 	Pos(Result<Option<usize>, LPosError>),
 	Push(Result<(), LPushError>),
 	PushX(Result<(), LPushError>),
-	// Range(Result<Vec<Vec<u8>>, LRangeError>),
+	Range(Result<Vec<Vec<u8>>, LRangeError>),
 	// Rem(Result<(), LRemError>),
 	// Set(Result<(), LSetError>),
 	// Trim(Result<(), LTrimError>),

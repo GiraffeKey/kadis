@@ -78,7 +78,6 @@ fn hash() {
 
 		let res = kadis.hgetall::<Cat>("cats").await;
 		assert!(res.is_ok());
-
 		assert_eq!(
 			res.unwrap().get("ferb").unwrap(),
 			&Cat {

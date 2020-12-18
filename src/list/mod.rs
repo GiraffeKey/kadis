@@ -53,6 +53,34 @@ fn id() -> String {
 
 pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult {
 	match cmd {
+		Collect(key) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Collect, LCollectError);
+			let mut items = Vec::new();
+
+			for (index, id) in list.iter().enumerate() {
+				let item_key = format!("kl-{}", id);
+				match node.get(&item_key).await {
+					Ok(data) => items.push(data),
+					Err(err) => return match err {
+						GetError::NotFound => ListCmdResult::Collect(Err(LCollectError::NotFound {
+							key: key.into(),
+							index,
+						})),
+						GetError::QuorumFailed => ListCmdResult::Collect(Err(LCollectError::QuorumFailed {
+							key: key.into(),
+							index,
+						})),
+						GetError::Timeout => ListCmdResult::Collect(Err(LCollectError::Timeout {
+							key: key.into(),
+							index,
+						})),
+					},
+				};
+			}
+
+			ListCmdResult::Collect(Ok(items))
+		},
 		Index(key, index) => {
 			let items_key = format!("kl-items-{}", key);
 			let list = get_list!(node, items_key, ListCmdResult, Index, LIndexError);
@@ -288,6 +316,42 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			join_list!(node, items_key, list, ListCmdResult, PushX, LPushError);
 
 			ListCmdResult::PushX(Ok(()))
+		},
+		Range(key, start, stop) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Range, LRangeError);
+			let mut items = Vec::new();
+
+			if stop > list.len() {
+				return ListCmdResult::Range(Err(LRangeError::OutOfBounds {
+					key: key.into(),
+					len: list.len(),
+				}));
+			}
+			let list = &list[start..=stop];
+
+			for (index, id) in list.iter().enumerate() {
+				let item_key = format!("kl-{}", id);
+				match node.get(&item_key).await {
+					Ok(data) => items.push(data),
+					Err(err) => return match err {
+						GetError::NotFound => ListCmdResult::Range(Err(LRangeError::NotFound {
+							key: key.into(),
+							index,
+						})),
+						GetError::QuorumFailed => ListCmdResult::Range(Err(LRangeError::QuorumFailed {
+							key: key.into(),
+							index,
+						})),
+						GetError::Timeout => ListCmdResult::Range(Err(LRangeError::Timeout {
+							key: key.into(),
+							index,
+						})),
+					},
+				};
+			}
+
+			ListCmdResult::Range(Ok(items))
 		},
 		_ => unimplemented!(),
 	}

@@ -251,6 +251,20 @@ impl Kadis {
         }
     }
 
+    pub async fn lcollect<T>(&mut self, key: &str) -> Result<Vec<T>, LCollectError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::List(ListCmd::Collect(key));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Collect(res)) => match res {
+                Ok(data) => Ok(data.iter()
+                    .map(|d| bincode::deserialize(d).unwrap())
+                    .collect()),
+                Err(err) => Err(err),
+            },
+            _ => unreachable!(),
+        }
+    }
+
     pub async fn lindex<T>(&mut self, key: &str, index: usize) -> Result<T, LIndexError>
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Index(key, index));
@@ -366,6 +380,20 @@ impl Kadis {
     pub async fn rpush_exists<T>(&mut self, key: &str, item: T) -> Result<(), LPushError>
     where T: Serialize {
         self.lrpush_exists(key, item, true).await
+    }
+
+    pub async fn lrange<T>(&mut self, key: &str, start: usize, stop: usize) -> Result<Vec<T>, LRangeError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::List(ListCmd::Range(key, start, stop));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Range(res)) => match res {
+                Ok(data) => Ok(data.iter()
+                    .map(|d| bincode::deserialize(d).unwrap())
+                    .collect()),
+                Err(err) => Err(err),
+            },
+            _ => unreachable!(),
+        }
     }
 }
 
