@@ -8,7 +8,7 @@ Kadis expands Kademlia with the following data structures:
 
 - Geospacial indices (Maybe coming soon)
 - Hashes (Done)
-- Lists (WIP)
+- Lists (Done)
 - Sets (Coming soon...)
 - Sorted sets (Coming soon...)
 - Streams (Maybe coming soon)

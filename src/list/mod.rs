@@ -30,25 +30,35 @@ pub use error::*;
 
 pub enum ListCmd<'a> {
 	Collect(&'a str),
-	Index(&'a str, usize),
-	Insert(&'a str, usize, Vec<u8>, bool),
+	Index(&'a str, isize),
+	Insert(&'a str, isize, Vec<u8>, bool),
 	Len(&'a str),
 	Pop(&'a str, bool),
 	Pos(&'a str, Vec<u8>, i32),
 	Push(&'a str, Vec<u8>, bool),
 	PushX(&'a str, Vec<u8>, bool),
-	Range(&'a str, usize, usize),
-	Rem(&'a str, usize),
-	Set(&'a str, usize, Vec<u8>),
-	Trim(&'a str, usize, usize),
-	Move(&'a str, &'a str, bool),
-	RPopLPush(&'a str, &'a str),
+	Range(&'a str, isize, isize),
+	Rem(&'a str, isize),
+	Set(&'a str, isize, Vec<u8>),
+	Trim(&'a str, isize, isize),
 }
 
 use ListCmd::*;
 
 fn id() -> String {
 	Uuid::new_v4().to_string()
+}
+
+fn out_of_bounds(index: isize, len: usize) -> bool {
+	index > len as isize - 1 || index < -(len as isize)
+}
+
+fn new_index(index: isize, len: usize) -> usize {
+	if index < 0 {
+		(len as isize + index) as usize
+	} else {
+		index as usize
+	}
 }
 
 pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
@@ -85,7 +95,17 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 			let items_key = format!("kl-items-{}", key);
 			let list = get_list!(node, items_key, ListResult, Index, LIndexError);
 
-			let id = match list.get(index) {
+			if out_of_bounds(index, list.len()) {
+				return ListResult::Index(Err(LIndexError::OutOfBounds {
+					key: key.into(),
+					index,
+					len: list.len(),
+				}));
+			}
+
+			let u_index = new_index(index, list.len());
+
+			let id = match list.get(u_index) {
 				Some(id) => id,
 				None => return ListResult::Index(Err(LIndexError::NotFound {
 					key: key.into(),
@@ -124,7 +144,7 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 				index
 			};
 
-			if index > list.len() {
+			if index.abs() as usize > list.len() {
 				return ListResult::Insert(Err(LInsertError::OutOfBounds {
 					key: key.into(),
 					index,
@@ -148,6 +168,8 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 					})),
 				}
 			}
+
+			let index = new_index(index, list.len());
 
 			list.insert(index, id);
 
@@ -322,13 +344,25 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 			let list = get_list!(node, items_key, ListResult, Range, LRangeError);
 			let mut items = Vec::new();
 
-			if stop >= list.len() {
+			if out_of_bounds(start, list.len()) {
+				return ListResult::Range(Err(LRangeError::OutOfBounds {
+					key: key.into(),
+					index: start,
+					len: list.len(),
+				}));
+			}
+
+			if out_of_bounds(stop, list.len()) {
 				return ListResult::Range(Err(LRangeError::OutOfBounds {
 					key: key.into(),
 					index: stop,
 					len: list.len(),
 				}));
 			}
+
+			let start = new_index(start, list.len());
+			let stop = new_index(stop, list.len());
+
 			let list = &list[start..=stop];
 
 			for (index, id) in list.iter().enumerate() {
@@ -358,7 +392,7 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 			let items_key = format!("kl-items-{}", key);
 			let mut list = get_list!(node, items_key, ListResult, Rem, LRemError);
 
-			if index >= list.len() {
+			if out_of_bounds(index, list.len()) {
 				return ListResult::Rem(Err(LRemError::OutOfBounds {
 					key: key.into(),
 					index,
@@ -366,7 +400,9 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 				}))
 			}
 
-			let id = list.remove(index);
+			let u_index = new_index(index, list.len());
+
+			let id = list.remove(u_index);
 
 			let item_key = format!("kl-{}", id);
 			let item = match node.get(&item_key).await {
@@ -397,7 +433,7 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 			let items_key = format!("kl-items-{}", key);
 			let list = get_list!(node, items_key, ListResult, Set, LSetError);
 
-			if index >= list.len() {
+			if out_of_bounds(index, list.len()) {
 				return ListResult::Set(Err(LSetError::OutOfBounds {
 					key: key.into(),
 					index,
@@ -405,7 +441,9 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 				}))
 			}
 
-			let id = &list[index];
+			let u_index = new_index(index, list.len());
+
+			let id = &list[u_index];
 			let item_key = format!("kl-{}", id);
 
 			match node.put(&item_key, item).await {
@@ -428,13 +466,24 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 			let items_key = format!("kl-items-{}", key);
 			let list = get_list!(node, items_key, ListResult, Trim, LTrimError);
 
-			if stop >= list.len() {
+			if out_of_bounds(start, list.len()) {
+				return ListResult::Trim(Err(LTrimError::OutOfBounds {
+					key: key.into(),
+					index: start,
+					len: list.len(),
+				}))
+			}
+
+			if out_of_bounds(stop, list.len()) {
 				return ListResult::Trim(Err(LTrimError::OutOfBounds {
 					key: key.into(),
 					index: stop,
 					len: list.len(),
 				}))
 			}
+
+			let start = new_index(start, list.len());
+			let stop = new_index(stop, list.len());
 
 			if start > 0 {
 				for id in &list[0..start] {
@@ -456,7 +505,5 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 
 			ListResult::Trim(Ok(()))
 		},
-		Move(_key, _dest, _right) => unimplemented!(),
-		RPopLPush(_key, _dest) => unimplemented!(),
 	}
 }

@@ -14,8 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-#![forbid(unsafe_code)]
-
 use std::{
     sync::{Arc, Mutex},
     task::{Context, Poll},

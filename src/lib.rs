@@ -265,7 +265,7 @@ impl Kadis {
         }
     }
 
-    pub async fn lindex<T>(&mut self, key: &str, index: usize) -> Result<T, LIndexError>
+    pub async fn lindex<T>(&mut self, key: &str, index: isize) -> Result<T, LIndexError>
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Index(key, index));
         match handle_cmd(&mut self.node, cmd).await {
@@ -277,7 +277,7 @@ impl Kadis {
         }
     }
 
-    async fn linsert<T>(&mut self, key: &str, index: usize, item: T, after: bool) -> Result<(), LInsertError>
+    async fn linsert<T>(&mut self, key: &str, index: isize, item: T, after: bool) -> Result<(), LInsertError>
     where T: Serialize {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Insert(key, index, item, after));
@@ -287,12 +287,12 @@ impl Kadis {
         }
     }
 
-    pub async fn linsert_before<T>(&mut self, key: &str, index: usize, item: T) -> Result<(), LInsertError>
+    pub async fn linsert_before<T>(&mut self, key: &str, index: isize, item: T) -> Result<(), LInsertError>
     where T: Serialize {
         self.linsert(key, index, item, false).await
     }
 
-    pub async fn linsert_after<T>(&mut self, key: &str, index:usize, item: T) -> Result<(), LInsertError>
+    pub async fn linsert_after<T>(&mut self, key: &str, index: isize, item: T) -> Result<(), LInsertError>
     where T: Serialize {
         self.linsert(key, index, item, true).await
     }
@@ -382,7 +382,7 @@ impl Kadis {
         self.lrpush_exists(key, item, true).await
     }
 
-    pub async fn lrange<T>(&mut self, key: &str, start: usize, stop: usize) -> Result<Vec<T>, LRangeError>
+    pub async fn lrange<T>(&mut self, key: &str, start: isize, stop: isize) -> Result<Vec<T>, LRangeError>
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Range(key, start, stop));
         match handle_cmd(&mut self.node, cmd).await {
@@ -396,7 +396,7 @@ impl Kadis {
         }
     }
 
-    pub async fn lrem<T>(&mut self, key: &str, index: usize) -> Result<T, LRemError>
+    pub async fn lrem<T>(&mut self, key: &str, index: isize) -> Result<T, LRemError>
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Rem(key, index));
         match handle_cmd(&mut self.node, cmd).await {
@@ -408,7 +408,7 @@ impl Kadis {
         }
     }
 
-    pub async fn lset<T>(&mut self, key: &str, index: usize, item: T) -> Result<(), LSetError>
+    pub async fn lset<T>(&mut self, key: &str, index: isize, item: T) -> Result<(), LSetError>
     where T: Serialize {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Set(key, index, item));
@@ -418,7 +418,7 @@ impl Kadis {
         }
     }
 
-    pub async fn ltrim<T>(&mut self, key: &str, start: usize, stop: usize) -> Result<(), LTrimError> {
+    pub async fn ltrim<T>(&mut self, key: &str, start: isize, stop: isize) -> Result<(), LTrimError> {
         let cmd = Cmd::List(ListCmd::Trim(key, start, stop));
         match handle_cmd(&mut self.node, cmd).await {
             CmdResult::List(ListResult::Trim(res)) => res,

@@ -50,17 +50,22 @@ pub enum LIndexError {
 	KeyTimeout {
 		key: String,
 	},
+	OutOfBounds {
+		key: String,
+		index: isize,
+		len: usize,
+	},
 	NotFound {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 }
 
@@ -77,16 +82,16 @@ pub enum LInsertError {
 	},
 	OutOfBounds {
 		key: String,
-		index: usize,
+		index: isize,
 		len: usize,
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 }
 
@@ -191,7 +196,7 @@ pub enum LRangeError {
 	},
 	OutOfBounds {
 		key: String,
-		index: usize,
+		index: isize,
 		len: usize,
 	},
 	NotFound {
@@ -221,20 +226,20 @@ pub enum LRemError {
 	},
 	OutOfBounds {
 		key: String,
-		index: usize,
+		index: isize,
 		len: usize,
 	},
 	NotFound {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 }
 
@@ -251,20 +256,20 @@ pub enum LSetError {
 	},
 	OutOfBounds {
 		key: String,
-		index: usize,
+		index: isize,
 		len: usize,
 	},
 	NotFound {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 }
 
@@ -281,16 +286,16 @@ pub enum LTrimError {
 	},
 	OutOfBounds {
 		key: String,
-		index: usize,
+		index: isize,
 		len: usize,
 	},
 	QuorumFailed {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 	Timeout {
 		key: String,
-		index: usize,
+		index: isize,
 	},
 }
 
@@ -307,6 +312,4 @@ pub enum ListResult {
 	Rem(Result<Vec<u8>, LRemError>),
 	Set(Result<(), LSetError>),
 	Trim(Result<(), LTrimError>),
-	// Move(Result<Vec<u8>, LMoveError>),
-	// RPopLPush(Result<Vec<u8>, RPopLPushError>),
 }
