@@ -294,7 +294,7 @@ pub enum LTrimError {
 	},
 }
 
-pub enum ListCmdResult {
+pub enum ListResult {
 	Collect(Result<Vec<Vec<u8>>, LCollectError>),
 	Index(Result<Vec<u8>, LIndexError>),
 	Insert(Result<(), LInsertError>),

@@ -46,7 +46,7 @@ pub enum HashCmd<'a> {
 
 use HashCmd::*;
 
-pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult {
+pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashResult {
 	match cmd {
 		Del(key, fields) => {
 			for field in fields {
@@ -55,50 +55,50 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 			}
 			
 			let fields_key = format!("kh-fields-{}", key);
-			let hash_fields = get_list!(node, fields_key, HashCmdResult, Del, HDelError);
+			let hash_fields = get_list!(node, fields_key, HashResult, Del, HDelError);
 
 			let hash_fields = hash_fields.iter()
 				.filter(|s| !fields.contains(&s.as_str()))
 				.map(|s| s.into())
 				.collect::<Vec<String>>();
 			
-			join_list!(node, fields_key, hash_fields, HashCmdResult, Del, HDelError);
+			join_list!(node, fields_key, hash_fields, HashResult, Del, HDelError);
 
-			HashCmdResult::Del(Ok(()))
+			HashResult::Del(Ok(()))
 		},
 		Exists(key, field) => {
 			let fields_key = format!("kh-fields-{}", key);
 			let fields = match node.get(&fields_key).await {
 				Ok(fields) => split_list(fields),
 				Err(err) => return match err {
-					GetError::NotFound => HashCmdResult::Exists(Ok(false)),
-					GetError::QuorumFailed => HashCmdResult::Exists(Err(HExistsError::QuorumFailed {
+					GetError::NotFound => HashResult::Exists(Ok(false)),
+					GetError::QuorumFailed => HashResult::Exists(Err(HExistsError::QuorumFailed {
 						key: key.into(),
 						field: field.into(),
 					})),
-					GetError::Timeout => HashCmdResult::Exists(Err(HExistsError::Timeout {
+					GetError::Timeout => HashResult::Exists(Err(HExistsError::Timeout {
 						key: key.into(),
 						field: field.into(),
 					})),
 				},
 			};
 			let exists = fields.contains(&field.into());
-			HashCmdResult::Exists(Ok(exists))
+			HashResult::Exists(Ok(exists))
 		},
 		Get(key, field) => {
 			let hash_key = format!("kh-{}-{}", key, field);
 			match node.get(&hash_key).await {
-				Ok(data) => HashCmdResult::Get(Ok(data)),
+				Ok(data) => HashResult::Get(Ok(data)),
 				Err(err) => match err {
-					GetError::NotFound => HashCmdResult::Get(Err(HGetError::NotFound {
+					GetError::NotFound => HashResult::Get(Err(HGetError::NotFound {
 						key: key.into(),
 						field: field.into(),
 					})),
-					GetError::QuorumFailed => HashCmdResult::Get(Err(HGetError::QuorumFailed {
+					GetError::QuorumFailed => HashResult::Get(Err(HGetError::QuorumFailed {
 						key: key.into(),
 						field: field.into(),
 					})),
-					GetError::Timeout => HashCmdResult::Get(Err(HGetError::Timeout {
+					GetError::Timeout => HashResult::Get(Err(HGetError::Timeout {
 						key: key.into(),
 						field: field.into(),
 					})),
@@ -113,15 +113,15 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				let value = match node.get(&hash_key).await {
 					Ok(data) => data,
 					Err(err) => return match err {
-						GetError::NotFound => HashCmdResult::GetM(Err(HGetError::NotFound {
+						GetError::NotFound => HashResult::GetM(Err(HGetError::NotFound {
 							key: key.into(),
 							field: (*field).into(),
 						})),
-						GetError::QuorumFailed => HashCmdResult::GetM(Err(HGetError::QuorumFailed {
+						GetError::QuorumFailed => HashResult::GetM(Err(HGetError::QuorumFailed {
 							key: key.into(),
 							field: (*field).into(),
 						})),
-						GetError::Timeout => HashCmdResult::GetM(Err(HGetError::Timeout {
+						GetError::Timeout => HashResult::GetM(Err(HGetError::Timeout {
 							key: key.into(),
 							field: (*field).into(),
 						})),
@@ -130,11 +130,11 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				values.push(value);
 			}
 
-			HashCmdResult::GetM(Ok(values))
+			HashResult::GetM(Ok(values))
 		},
 		GetAll(key) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let fields = get_list!(node, fields_key, HashCmdResult, GetAll, HGetAllError);
+			let fields = get_list!(node, fields_key, HashResult, GetAll, HGetAllError);
 
 			let mut values = HashMap::new();
 
@@ -143,15 +143,15 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				let value = match node.get(&hash_key).await {
 					Ok(data) => data,
 					Err(err) => return match err {
-						GetError::NotFound => HashCmdResult::GetAll(Err(HGetAllError::NotFound {
+						GetError::NotFound => HashResult::GetAll(Err(HGetAllError::NotFound {
 							key: key.into(),
 							field,
 						})),
-						GetError::QuorumFailed => HashCmdResult::GetAll(Err(HGetAllError::QuorumFailed {
+						GetError::QuorumFailed => HashResult::GetAll(Err(HGetAllError::QuorumFailed {
 							key: key.into(),
 							field,
 						})),
-						GetError::Timeout => HashCmdResult::GetAll(Err(HGetAllError::Timeout {
+						GetError::Timeout => HashResult::GetAll(Err(HGetAllError::Timeout {
 							key: key.into(),
 							field,
 						})),
@@ -160,22 +160,22 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				values.insert(field, value);
 			}
 
-			HashCmdResult::GetAll(Ok(values))
+			HashResult::GetAll(Ok(values))
 		},
 		Incr(key, field, inc) => {
 			let hash_key = format!("kh-{}-{}", key, field);
 			let value = match node.get(&hash_key).await {
 				Ok(data) => data,
 				Err(err) => return match err {
-					GetError::NotFound => HashCmdResult::Incr(Err(HIncrError::NotFound {
+					GetError::NotFound => HashResult::Incr(Err(HIncrError::NotFound {
 						key: key.into(),
 						field: field.into(),
 					})),
-					GetError::QuorumFailed => HashCmdResult::Incr(Err(HIncrError::QuorumFailed {
+					GetError::QuorumFailed => HashResult::Incr(Err(HIncrError::QuorumFailed {
 						key: key.into(),
 						field: field.into(),
 					})),
-					GetError::Timeout => HashCmdResult::Incr(Err(HIncrError::Timeout {
+					GetError::Timeout => HashResult::Incr(Err(HIncrError::Timeout {
 						key: key.into(),
 						field: field.into(),
 					})),
@@ -184,7 +184,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 
 			let value = match bincode::deserialize::<f32>(&value) {
 				Ok(value) => value + inc,
-				Err(_) => return HashCmdResult::Incr(Err(HIncrError::NotANumber {
+				Err(_) => return HashResult::Incr(Err(HIncrError::NotANumber {
 					key: key.into(),
 					value,
 				})),
@@ -192,13 +192,13 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 			let value = bincode::serialize(&value).unwrap();
 
 			match node.put(&hash_key, value).await {
-				Ok(()) => HashCmdResult::Incr(Ok(())),
+				Ok(()) => HashResult::Incr(Ok(())),
 				Err(err) => return match err {
-					PutError::QuorumFailed => HashCmdResult::Incr(Err(HIncrError::QuorumFailed {
+					PutError::QuorumFailed => HashResult::Incr(Err(HIncrError::QuorumFailed {
 						key: key.into(),
 						field: field.into(),
 					})),
-					PutError::Timeout => HashCmdResult::Incr(Err(HIncrError::Timeout {
+					PutError::Timeout => HashResult::Incr(Err(HIncrError::Timeout {
 						key: key.into(),
 						field: field.into(),
 					})),
@@ -207,40 +207,40 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 		},
 		Keys(key) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let keys = get_list!(node, fields_key, HashCmdResult, Keys, HKeysError);
-			HashCmdResult::Keys(Ok(keys))
+			let keys = get_list!(node, fields_key, HashResult, Keys, HKeysError);
+			HashResult::Keys(Ok(keys))
 		},
 		Len(key) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let fields = get_list!(node, fields_key, HashCmdResult, Len, HLenError);
-			HashCmdResult::Len(Ok(fields.len()))
+			let fields = get_list!(node, fields_key, HashResult, Len, HLenError);
+			HashResult::Len(Ok(fields.len()))
 		},
 		Set(key, field, value) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, Set, HSetError);
+			let mut hash_fields = get_list_exists!(node, fields_key, HashResult, Set, HSetError);
 
 			let hash_key = format!("kh-{}-{}", key, field);
 			match node.put(&hash_key, value).await {
 				Ok(()) => hash_fields.push(field.into()),
 				Err(err) => return match err {
-					PutError::QuorumFailed => HashCmdResult::Set(Err(HSetError::QuorumFailed {
+					PutError::QuorumFailed => HashResult::Set(Err(HSetError::QuorumFailed {
 						key: key.into(),
 						field: field.into(),
 					})),
-					PutError::Timeout => HashCmdResult::Set(Err(HSetError::Timeout {
+					PutError::Timeout => HashResult::Set(Err(HSetError::Timeout {
 						key: key.into(),
 						field: field.into(),
 					})),
 				}
 			}
 
-			join_list!(node, fields_key, hash_fields, HashCmdResult, Set, HSetError);
+			join_list!(node, fields_key, hash_fields, HashResult, Set, HSetError);
 		
-			HashCmdResult::Set(Ok(()))
+			HashResult::Set(Ok(()))
 		},
 		SetM(key, fields, values) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, SetM, HSetError);
+			let mut hash_fields = get_list_exists!(node, fields_key, HashResult, SetM, HSetError);
 
 			for i in 0..fields.len() {
 				let field = fields[i];
@@ -249,11 +249,11 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				match node.put(&hash_key, value).await {
 					Ok(()) => hash_fields.push(field.into()),
 					Err(err) => return match err {
-						PutError::QuorumFailed => HashCmdResult::SetM(Err(HSetError::QuorumFailed {
+						PutError::QuorumFailed => HashResult::SetM(Err(HSetError::QuorumFailed {
 							key: key.into(),
 							field: field.into(),
 						})),
-						PutError::Timeout => HashCmdResult::SetM(Err(HSetError::Timeout {
+						PutError::Timeout => HashResult::SetM(Err(HSetError::Timeout {
 							key: key.into(),
 							field: field.into(),
 						})),
@@ -261,13 +261,13 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				}
 			}
 
-			join_list!(node, fields_key, hash_fields, HashCmdResult, SetM, HSetError);
+			join_list!(node, fields_key, hash_fields, HashResult, SetM, HSetError);
 		
-			HashCmdResult::SetM(Ok(()))
+			HashResult::SetM(Ok(()))
 		},
 		SetNx(key, field, value) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let mut hash_fields = get_list_exists!(node, fields_key, HashCmdResult, SetNx, HSetError);
+			let mut hash_fields = get_list_exists!(node, fields_key, HashResult, SetNx, HSetError);
 			let exists = hash_fields.contains(&field.into());
 
 			if !exists {
@@ -275,25 +275,25 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				match node.put(&hash_key, value).await {
 					Ok(()) => hash_fields.push(field.into()),
 					Err(err) => return match err {
-						PutError::QuorumFailed => HashCmdResult::SetNx(Err(HSetError::QuorumFailed {
+						PutError::QuorumFailed => HashResult::SetNx(Err(HSetError::QuorumFailed {
 							key: key.into(),
 							field: field.into(),
 						})),
-						PutError::Timeout => HashCmdResult::SetNx(Err(HSetError::Timeout {
+						PutError::Timeout => HashResult::SetNx(Err(HSetError::Timeout {
 							key: key.into(),
 							field: field.into(),
 						})),
 					}
 				}
 
-				join_list!(node, fields_key, hash_fields, HashCmdResult, SetNx, HSetError);
+				join_list!(node, fields_key, hash_fields, HashResult, SetNx, HSetError);
 			}
 		
-			HashCmdResult::SetNx(Ok(()))
+			HashResult::SetNx(Ok(()))
 		},
 		Vals(key) => {
 			let fields_key = format!("kh-fields-{}", key);
-			let fields = get_list!(node, fields_key, HashCmdResult, Vals, HValsError);
+			let fields = get_list!(node, fields_key, HashResult, Vals, HValsError);
 
 			let mut values = Vec::new();
 
@@ -302,15 +302,15 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				let value = match node.get(&hash_key).await {
 					Ok(data) => data,
 					Err(err) => return match err {
-						GetError::NotFound => HashCmdResult::Vals(Err(HValsError::NotFound {
+						GetError::NotFound => HashResult::Vals(Err(HValsError::NotFound {
 							key: key.into(),
 							field,
 						})),
-						GetError::QuorumFailed => HashCmdResult::Vals(Err(HValsError::QuorumFailed {
+						GetError::QuorumFailed => HashResult::Vals(Err(HValsError::QuorumFailed {
 							key: key.into(),
 							field,
 						})),
-						GetError::Timeout => HashCmdResult::Vals(Err(HValsError::Timeout {
+						GetError::Timeout => HashResult::Vals(Err(HValsError::Timeout {
 							key: key.into(),
 							field,
 						})),
@@ -319,7 +319,7 @@ pub async fn handle_hash_cmd(node: &mut Node, cmd: HashCmd<'_>) -> HashCmdResult
 				values.push(value);
 			}
 
-			HashCmdResult::Vals(Ok(values))
+			HashResult::Vals(Ok(values))
 		},
 	}
 }

@@ -171,7 +171,7 @@ pub enum HValsError {
 	},
 }
 
-pub enum HashCmdResult {
+pub enum HashResult {
 	Del(Result<(), HDelError>),
 	Exists(Result<bool, HExistsError>),
 	Get(Result<Vec<u8>, HGetError>),

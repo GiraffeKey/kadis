@@ -51,11 +51,11 @@ fn id() -> String {
 	Uuid::new_v4().to_string()
 }
 
-pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult {
+pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListResult {
 	match cmd {
 		Collect(key) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Collect, LCollectError);
+			let list = get_list!(node, items_key, ListResult, Collect, LCollectError);
 			let mut items = Vec::new();
 
 			for (index, id) in list.iter().enumerate() {
@@ -63,15 +63,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				match node.get(&item_key).await {
 					Ok(data) => items.push(data),
 					Err(err) => return match err {
-						GetError::NotFound => ListCmdResult::Collect(Err(LCollectError::NotFound {
+						GetError::NotFound => ListResult::Collect(Err(LCollectError::NotFound {
 							key: key.into(),
 							index,
 						})),
-						GetError::QuorumFailed => ListCmdResult::Collect(Err(LCollectError::QuorumFailed {
+						GetError::QuorumFailed => ListResult::Collect(Err(LCollectError::QuorumFailed {
 							key: key.into(),
 							index,
 						})),
-						GetError::Timeout => ListCmdResult::Collect(Err(LCollectError::Timeout {
+						GetError::Timeout => ListResult::Collect(Err(LCollectError::Timeout {
 							key: key.into(),
 							index,
 						})),
@@ -79,15 +79,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				};
 			}
 
-			ListCmdResult::Collect(Ok(items))
+			ListResult::Collect(Ok(items))
 		},
 		Index(key, index) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Index, LIndexError);
+			let list = get_list!(node, items_key, ListResult, Index, LIndexError);
 
 			let id = match list.get(index) {
 				Some(id) => id,
-				None => return ListCmdResult::Index(Err(LIndexError::NotFound {
+				None => return ListResult::Index(Err(LIndexError::NotFound {
 					key: key.into(),
 					index,
 				})),
@@ -97,26 +97,26 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			let item = match node.get(&item_key).await {
 				Ok(data) => data,
 				Err(err) => return match err {
-					GetError::NotFound => ListCmdResult::Index(Err(LIndexError::NotFound {
+					GetError::NotFound => ListResult::Index(Err(LIndexError::NotFound {
 						key: key.into(),
 						index,
 					})),
-					GetError::QuorumFailed => ListCmdResult::Index(Err(LIndexError::QuorumFailed {
+					GetError::QuorumFailed => ListResult::Index(Err(LIndexError::QuorumFailed {
 						key: key.into(),
 						index,
 					})),
-					GetError::Timeout => ListCmdResult::Index(Err(LIndexError::Timeout {
+					GetError::Timeout => ListResult::Index(Err(LIndexError::Timeout {
 						key: key.into(),
 						index,
 					})),
 				},
 			};
 
-			ListCmdResult::Index(Ok(item))
+			ListResult::Index(Ok(item))
 		},
 		Insert(key, index, item, after) => {
 			let items_key = format!("kl-items-{}", key);
-			let mut list = get_list!(node, items_key, ListCmdResult, Insert, LInsertError);
+			let mut list = get_list!(node, items_key, ListResult, Insert, LInsertError);
 
 			let index = if after {
 				index + 1
@@ -125,7 +125,7 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			};
 
 			if index > list.len() {
-				return ListCmdResult::Insert(Err(LInsertError::OutOfBounds {
+				return ListResult::Insert(Err(LInsertError::OutOfBounds {
 					key: key.into(),
 					index,
 					len: list.len(),
@@ -138,11 +138,11 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			match node.put(&item_key, item).await {
 				Ok(_) => (),
 				Err(err) => return match err {
-					PutError::QuorumFailed => ListCmdResult::Insert(Err(LInsertError::QuorumFailed {
+					PutError::QuorumFailed => ListResult::Insert(Err(LInsertError::QuorumFailed {
 						key: key.into(),
 						index,
 					})),
-					PutError::Timeout => ListCmdResult::Insert(Err(LInsertError::Timeout {
+					PutError::Timeout => ListResult::Insert(Err(LInsertError::Timeout {
 						key: key.into(),
 						index,
 					})),
@@ -151,21 +151,21 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			list.insert(index, id);
 
-			join_list!(node, items_key, list, ListCmdResult, Insert, LInsertError);
+			join_list!(node, items_key, list, ListResult, Insert, LInsertError);
 
-			ListCmdResult::Insert(Ok(()))
+			ListResult::Insert(Ok(()))
 		},
 		Len(key) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Len, LLenError);
-			ListCmdResult::Len(Ok(list.len()))
+			let list = get_list!(node, items_key, ListResult, Len, LLenError);
+			ListResult::Len(Ok(list.len()))
 		},
 		Pop(key, right) => {
 			let items_key = format!("kl-items-{}", key);
-			let mut list = get_list!(node, items_key, ListCmdResult, Pop, LPopError);
+			let mut list = get_list!(node, items_key, ListResult, Pop, LPopError);
 
 			if list.len() == 0 {
-				return ListCmdResult::Pop(Err(LPopError::EmptyList {
+				return ListResult::Pop(Err(LPopError::EmptyList {
 					key: key.into(),
 				}))
 			}
@@ -182,15 +182,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			let item = match node.get(&item_key).await {
 				Ok(data) => data,
 				Err(err) => return match err {
-					GetError::NotFound => ListCmdResult::Pop(Err(LPopError::NotFound {
+					GetError::NotFound => ListResult::Pop(Err(LPopError::NotFound {
 						key: key.into(),
 						index,
 					})),
-					GetError::QuorumFailed => ListCmdResult::Pop(Err(LPopError::QuorumFailed {
+					GetError::QuorumFailed => ListResult::Pop(Err(LPopError::QuorumFailed {
 						key: key.into(),
 						index,
 					})),
-					GetError::Timeout => ListCmdResult::Pop(Err(LPopError::Timeout {
+					GetError::Timeout => ListResult::Pop(Err(LPopError::Timeout {
 						key: key.into(),
 						index,
 					})),
@@ -199,20 +199,20 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			node.remove(&item_key);
 
-			join_list!(node, items_key, list, ListCmdResult, Pop, LPopError);
+			join_list!(node, items_key, list, ListResult, Pop, LPopError);
 
-			ListCmdResult::Pop(Ok(item))
+			ListResult::Pop(Ok(item))
 		},
 		Pos(key, test_item, rank) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Pos, LPosError);
+			let list = get_list!(node, items_key, ListResult, Pos, LPosError);
 
 			let list = if rank > 0 {
 				list
 			} else if rank < 0 {
 				list.iter().rev().map(|s| s.into()).collect()
 			} else {
-				return ListCmdResult::Pos(Err(LPosError::RankZero {
+				return ListResult::Pos(Err(LPosError::RankZero {
 					key: key.into(),
 				}));
 			};
@@ -224,15 +224,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				let item = match node.get(&item_key).await {
 					Ok(data) => data,
 					Err(err) => return match err {
-						GetError::NotFound => ListCmdResult::Pos(Err(LPosError::NotFound {
+						GetError::NotFound => ListResult::Pos(Err(LPosError::NotFound {
 							key: key.into(),
 							index,
 						})),
-						GetError::QuorumFailed => ListCmdResult::Pos(Err(LPosError::QuorumFailed {
+						GetError::QuorumFailed => ListResult::Pos(Err(LPosError::QuorumFailed {
 							key: key.into(),
 							index,
 						})),
-						GetError::Timeout => ListCmdResult::Pos(Err(LPosError::Timeout {
+						GetError::Timeout => ListResult::Pos(Err(LPosError::Timeout {
 							key: key.into(),
 							index,
 						})),
@@ -241,16 +241,16 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				if item == test_item {
 					found += 1;
 					if found == rank.abs() {
-						return ListCmdResult::Pos(Ok(Some(index)));
+						return ListResult::Pos(Ok(Some(index)));
 					}
 				}
 			}
 
-			ListCmdResult::Pos(Ok(None))
+			ListResult::Pos(Ok(None))
 		},
 		Push(key, item, right) => {
 			let items_key = format!("kl-items-{}", key);
-			let mut list = get_list_exists!(node, items_key, ListCmdResult, Push, LPushError);
+			let mut list = get_list_exists!(node, items_key, ListResult, Push, LPushError);
 
 			let id = id();
 			let item_key = format!("kl-{}", id);
@@ -258,10 +258,10 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			match node.put(&item_key, item).await {
 				Ok(_) => (),
 				Err(err) => return match err {
-					PutError::QuorumFailed => ListCmdResult::Push(Err(LPushError::QuorumFailed {
+					PutError::QuorumFailed => ListResult::Push(Err(LPushError::QuorumFailed {
 						key: key.into(),
 					})),
-					PutError::Timeout => ListCmdResult::Push(Err(LPushError::Timeout {
+					PutError::Timeout => ListResult::Push(Err(LPushError::Timeout {
 						key: key.into(),
 					})),
 				}
@@ -273,20 +273,20 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				list.insert(0, id);
 			}
 
-			join_list!(node, items_key, list, ListCmdResult, Push, LPushError);
+			join_list!(node, items_key, list, ListResult, Push, LPushError);
 
-			ListCmdResult::Push(Ok(()))
+			ListResult::Push(Ok(()))
 		},
 		PushX(key, item, right) => {
 			let items_key = format!("kl-items-{}", key);
 			let mut list = match node.get(&items_key).await {
 				Ok(list) => split_list(list),
 				Err(err) => return match err {
-					GetError::NotFound => ListCmdResult::PushX(Ok(())),
-					GetError::QuorumFailed => ListCmdResult::PushX(Err(LPushError::KeyQuorumFailed {
+					GetError::NotFound => ListResult::PushX(Ok(())),
+					GetError::QuorumFailed => ListResult::PushX(Err(LPushError::KeyQuorumFailed {
 						key: key.into(),
 					})),
-					GetError::Timeout => ListCmdResult::PushX(Err(LPushError::KeyTimeout {
+					GetError::Timeout => ListResult::PushX(Err(LPushError::KeyTimeout {
 						key: key.into(),
 					})),
 				},
@@ -298,10 +298,10 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			match node.put(&item_key, item).await {
 				Ok(_) => (),
 				Err(err) => return match err {
-					PutError::QuorumFailed => ListCmdResult::PushX(Err(LPushError::QuorumFailed {
+					PutError::QuorumFailed => ListResult::PushX(Err(LPushError::QuorumFailed {
 						key: key.into(),
 					})),
-					PutError::Timeout => ListCmdResult::PushX(Err(LPushError::Timeout {
+					PutError::Timeout => ListResult::PushX(Err(LPushError::Timeout {
 						key: key.into(),
 					})),
 				}
@@ -313,17 +313,17 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				list.insert(0, id);
 			}
 
-			join_list!(node, items_key, list, ListCmdResult, PushX, LPushError);
+			join_list!(node, items_key, list, ListResult, PushX, LPushError);
 
-			ListCmdResult::PushX(Ok(()))
+			ListResult::PushX(Ok(()))
 		},
 		Range(key, start, stop) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Range, LRangeError);
+			let list = get_list!(node, items_key, ListResult, Range, LRangeError);
 			let mut items = Vec::new();
 
 			if stop >= list.len() {
-				return ListCmdResult::Range(Err(LRangeError::OutOfBounds {
+				return ListResult::Range(Err(LRangeError::OutOfBounds {
 					key: key.into(),
 					index: stop,
 					len: list.len(),
@@ -336,15 +336,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				match node.get(&item_key).await {
 					Ok(data) => items.push(data),
 					Err(err) => return match err {
-						GetError::NotFound => ListCmdResult::Range(Err(LRangeError::NotFound {
+						GetError::NotFound => ListResult::Range(Err(LRangeError::NotFound {
 							key: key.into(),
 							index,
 						})),
-						GetError::QuorumFailed => ListCmdResult::Range(Err(LRangeError::QuorumFailed {
+						GetError::QuorumFailed => ListResult::Range(Err(LRangeError::QuorumFailed {
 							key: key.into(),
 							index,
 						})),
-						GetError::Timeout => ListCmdResult::Range(Err(LRangeError::Timeout {
+						GetError::Timeout => ListResult::Range(Err(LRangeError::Timeout {
 							key: key.into(),
 							index,
 						})),
@@ -352,14 +352,14 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 				};
 			}
 
-			ListCmdResult::Range(Ok(items))
+			ListResult::Range(Ok(items))
 		},
 		Rem(key, index) => {
 			let items_key = format!("kl-items-{}", key);
-			let mut list = get_list!(node, items_key, ListCmdResult, Rem, LRemError);
+			let mut list = get_list!(node, items_key, ListResult, Rem, LRemError);
 
 			if index >= list.len() {
-				return ListCmdResult::Rem(Err(LRemError::OutOfBounds {
+				return ListResult::Rem(Err(LRemError::OutOfBounds {
 					key: key.into(),
 					index,
 					len: list.len(),
@@ -372,15 +372,15 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			let item = match node.get(&item_key).await {
 				Ok(data) => data,
 				Err(err) => return match err {
-					GetError::NotFound => ListCmdResult::Rem(Err(LRemError::NotFound {
+					GetError::NotFound => ListResult::Rem(Err(LRemError::NotFound {
 						key: key.into(),
 						index,
 					})),
-					GetError::QuorumFailed => ListCmdResult::Rem(Err(LRemError::QuorumFailed {
+					GetError::QuorumFailed => ListResult::Rem(Err(LRemError::QuorumFailed {
 						key: key.into(),
 						index,
 					})),
-					GetError::Timeout => ListCmdResult::Rem(Err(LRemError::Timeout {
+					GetError::Timeout => ListResult::Rem(Err(LRemError::Timeout {
 						key: key.into(),
 						index,
 					})),
@@ -389,16 +389,16 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			node.remove(&item_key);
 
-			join_list!(node, items_key, list, ListCmdResult, Rem, LRemError);
+			join_list!(node, items_key, list, ListResult, Rem, LRemError);
 
-			ListCmdResult::Rem(Ok(item))
+			ListResult::Rem(Ok(item))
 		},
 		Set(key, index, item) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Set, LSetError);
+			let list = get_list!(node, items_key, ListResult, Set, LSetError);
 
 			if index >= list.len() {
-				return ListCmdResult::Set(Err(LSetError::OutOfBounds {
+				return ListResult::Set(Err(LSetError::OutOfBounds {
 					key: key.into(),
 					index,
 					len: list.len(),
@@ -411,25 +411,25 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			match node.put(&item_key, item).await {
 				Ok(_) => (),
 				Err(err) => return match err {
-					PutError::QuorumFailed => ListCmdResult::Set(Err(LSetError::QuorumFailed {
+					PutError::QuorumFailed => ListResult::Set(Err(LSetError::QuorumFailed {
 						key: key.into(),
 						index,
 					})),
-					PutError::Timeout => ListCmdResult::Set(Err(LSetError::Timeout {
+					PutError::Timeout => ListResult::Set(Err(LSetError::Timeout {
 						key: key.into(),
 						index,
 					})),
 				}
 			}
 
-			ListCmdResult::Set(Ok(()))
+			ListResult::Set(Ok(()))
 		},
 		Trim(key, start, stop) => {
 			let items_key = format!("kl-items-{}", key);
-			let list = get_list!(node, items_key, ListCmdResult, Trim, LTrimError);
+			let list = get_list!(node, items_key, ListResult, Trim, LTrimError);
 
 			if stop >= list.len() {
-				return ListCmdResult::Trim(Err(LTrimError::OutOfBounds {
+				return ListResult::Trim(Err(LTrimError::OutOfBounds {
 					key: key.into(),
 					index: stop,
 					len: list.len(),
@@ -452,11 +452,11 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			let list = &list[start..=stop];
 
-			join_list!(node, items_key, list, ListCmdResult, Trim, LTrimError);
+			join_list!(node, items_key, list, ListResult, Trim, LTrimError);
 
-			ListCmdResult::Trim(Ok(()))
+			ListResult::Trim(Ok(()))
 		},
-		Move(key, dest, right) => unimplemented!(),
-		RPopLPush(key, dest) => unimplemented!(),
+		Move(_key, _dest, _right) => unimplemented!(),
+		RPopLPush(_key, _dest) => unimplemented!(),
 	}
 }

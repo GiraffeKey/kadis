@@ -35,8 +35,8 @@ pub enum Cmd<'a> {
 }
 
 pub enum CmdResult {
-    Hash(HashCmdResult),
-    List(ListCmdResult),
+    Hash(HashResult),
+    List(ListResult),
 }
 
 async fn handle_cmd(node: &mut Node, cmd: Cmd<'_>) -> CmdResult {
@@ -112,7 +112,7 @@ impl Kadis {
 		let fields = &[field];
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));
 		match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Del(res)) => res,
+            CmdResult::Hash(HashResult::Del(res)) => res,
             _ => unreachable!(),
         }
 	}
@@ -120,7 +120,7 @@ impl Kadis {
 	pub async fn hdel_multiple(&mut self, key: &str, fields: &[&str]) -> Result<(), HDelError> {
         let cmd = Cmd::Hash(HashCmd::Del(key, fields));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Del(res)) => res,
+            CmdResult::Hash(HashResult::Del(res)) => res,
             _ => unreachable!(),
         }
 	}
@@ -128,7 +128,7 @@ impl Kadis {
     pub async fn hexists(&mut self, key: &str, field: &str) -> Result<bool, HExistsError> {
         let cmd = Cmd::Hash(HashCmd::Exists(key, field));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Exists(res)) => res,
+            CmdResult::Hash(HashResult::Exists(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -137,7 +137,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::Hash(HashCmd::Get(key, field));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Get(res)) => match res {
+            CmdResult::Hash(HashResult::Get(res)) => match res {
                 Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
                 Err(err) => Err(err),
             },
@@ -149,7 +149,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::Hash(HashCmd::GetM(key, fields));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::GetM(res)) => match res {
+            CmdResult::Hash(HashResult::GetM(res)) => match res {
                 Ok(data) => Ok(data.iter()
                     .map(|d| bincode::deserialize(d).unwrap())
                     .collect()),
@@ -163,7 +163,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::Hash(HashCmd::GetAll(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::GetAll(res)) => match res {
+            CmdResult::Hash(HashResult::GetAll(res)) => match res {
                 Ok(map) => {
                     let mut data = HashMap::new();
 
@@ -186,7 +186,7 @@ impl Kadis {
     pub async fn hincr_float(&mut self, key: &str, field: &str, inc: f32) -> Result<(), HIncrError> {
         let cmd = Cmd::Hash(HashCmd::Incr(key, field, inc));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Incr(res)) => res,
+            CmdResult::Hash(HashResult::Incr(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -194,7 +194,7 @@ impl Kadis {
     pub async fn hkeys(&mut self, key: &str) -> Result<Vec<String>, HKeysError> {
         let cmd = Cmd::Hash(HashCmd::Keys(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Keys(res)) => res,
+            CmdResult::Hash(HashResult::Keys(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -202,7 +202,7 @@ impl Kadis {
     pub async fn hlen(&mut self, key: &str) -> Result<usize, HLenError> {
         let cmd = Cmd::Hash(HashCmd::Len(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Len(res)) => res,
+            CmdResult::Hash(HashResult::Len(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -212,7 +212,7 @@ impl Kadis {
         let value = bincode::serialize(&value).unwrap();
         let cmd = Cmd::Hash(HashCmd::Set(key, field, value));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Set(res)) => res,
+            CmdResult::Hash(HashResult::Set(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -222,7 +222,7 @@ impl Kadis {
         let values = values.iter().map(|v| bincode::serialize(&v).unwrap()).collect();
         let cmd = Cmd::Hash(HashCmd::SetM(key, fields, values));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::SetM(res)) => res,
+            CmdResult::Hash(HashResult::SetM(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -232,7 +232,7 @@ impl Kadis {
         let value = bincode::serialize(&value).unwrap();
         let cmd = Cmd::Hash(HashCmd::SetNx(key, field, value));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::SetNx(res)) => res,
+            CmdResult::Hash(HashResult::SetNx(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -241,7 +241,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::Hash(HashCmd::Vals(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::Hash(HashCmdResult::Vals(res)) => match res {
+            CmdResult::Hash(HashResult::Vals(res)) => match res {
                 Ok(data) => Ok(data.iter()
                     .map(|d| bincode::deserialize(d).unwrap())
                     .collect()),
@@ -255,7 +255,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Collect(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Collect(res)) => match res {
+            CmdResult::List(ListResult::Collect(res)) => match res {
                 Ok(data) => Ok(data.iter()
                     .map(|d| bincode::deserialize(d).unwrap())
                     .collect()),
@@ -269,7 +269,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Index(key, index));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Index(res)) => match res {
+            CmdResult::List(ListResult::Index(res)) => match res {
                 Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
                 Err(err) => Err(err),
             },
@@ -282,7 +282,7 @@ impl Kadis {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Insert(key, index, item, after));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Insert(res)) => res,
+            CmdResult::List(ListResult::Insert(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -300,7 +300,7 @@ impl Kadis {
     pub async fn llen(&mut self, key: &str) -> Result<usize, LLenError>  {
         let cmd = Cmd::List(ListCmd::Len(key));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Len(res)) => res,
+            CmdResult::List(ListResult::Len(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -309,7 +309,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Pop(key, right));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Pop(res)) => match res {
+            CmdResult::List(ListResult::Pop(res)) => match res {
                 Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
                 Err(err) => Err(err),
             },
@@ -332,7 +332,7 @@ impl Kadis {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Pos(key, item, rank));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Pos(res)) => res,
+            CmdResult::List(ListResult::Pos(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -347,7 +347,7 @@ impl Kadis {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Push(key, item, right));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Push(res)) => res,
+            CmdResult::List(ListResult::Push(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -367,7 +367,7 @@ impl Kadis {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::PushX(key, item, right));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::PushX(res)) => res,
+            CmdResult::List(ListResult::PushX(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -386,7 +386,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Range(key, start, stop));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Range(res)) => match res {
+            CmdResult::List(ListResult::Range(res)) => match res {
                 Ok(data) => Ok(data.iter()
                     .map(|d| bincode::deserialize(d).unwrap())
                     .collect()),
@@ -400,7 +400,7 @@ impl Kadis {
     where T: DeserializeOwned {
         let cmd = Cmd::List(ListCmd::Rem(key, index));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Rem(res)) => match res {
+            CmdResult::List(ListResult::Rem(res)) => match res {
                 Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
                 Err(err) => Err(err),
             },
@@ -413,7 +413,7 @@ impl Kadis {
         let item = bincode::serialize(&item).unwrap();
         let cmd = Cmd::List(ListCmd::Set(key, index, item));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Set(res)) => res,
+            CmdResult::List(ListResult::Set(res)) => res,
             _ => unreachable!(),
         }
     }
@@ -421,7 +421,7 @@ impl Kadis {
     pub async fn ltrim<T>(&mut self, key: &str, start: usize, stop: usize) -> Result<(), LTrimError> {
         let cmd = Cmd::List(ListCmd::Trim(key, start, stop));
         match handle_cmd(&mut self.node, cmd).await {
-            CmdResult::List(ListCmdResult::Trim(res)) => res,
+            CmdResult::List(ListResult::Trim(res)) => res,
             _ => unreachable!(),
         }
     }
