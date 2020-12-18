@@ -191,11 +191,98 @@ pub enum LRangeError {
 	},
 	OutOfBounds {
 		key: String,
+		index: usize,
 		len: usize,
 	},
 	NotFound {
 		key: String,
 		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
+pub enum LRemError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	OutOfBounds {
+		key: String,
+		index: usize,
+		len: usize,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
+pub enum LSetError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	OutOfBounds {
+		key: String,
+		index: usize,
+		len: usize,
+	},
+	NotFound {
+		key: String,
+		index: usize,
+	},
+	QuorumFailed {
+		key: String,
+		index: usize,
+	},
+	Timeout {
+		key: String,
+		index: usize,
+	},
+}
+
+#[derive(Debug)]
+pub enum LTrimError {
+	KeyNotFound {
+		key: String,
+	},
+	KeyQuorumFailed {
+		key: String,
+	},
+	KeyTimeout {
+		key: String,
+	},
+	OutOfBounds {
+		key: String,
+		index: usize,
+		len: usize,
 	},
 	QuorumFailed {
 		key: String,
@@ -217,9 +304,9 @@ pub enum ListCmdResult {
 	Push(Result<(), LPushError>),
 	PushX(Result<(), LPushError>),
 	Range(Result<Vec<Vec<u8>>, LRangeError>),
-	// Rem(Result<(), LRemError>),
-	// Set(Result<(), LSetError>),
-	// Trim(Result<(), LTrimError>),
+	Rem(Result<Vec<u8>, LRemError>),
+	Set(Result<(), LSetError>),
+	Trim(Result<(), LTrimError>),
 	// Move(Result<Vec<u8>, LMoveError>),
 	// RPopLPush(Result<Vec<u8>, RPopLPushError>),
 }

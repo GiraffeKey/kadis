@@ -395,6 +395,36 @@ impl Kadis {
             _ => unreachable!(),
         }
     }
+
+    pub async fn lrem<T>(&mut self, key: &str, index: usize) -> Result<T, LRemError>
+    where T: DeserializeOwned {
+        let cmd = Cmd::List(ListCmd::Rem(key, index));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Rem(res)) => match res {
+                Ok(data) => Ok(bincode::deserialize(&data).unwrap()),
+                Err(err) => Err(err),
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn lset<T>(&mut self, key: &str, index: usize, item: T) -> Result<(), LSetError>
+    where T: Serialize {
+        let item = bincode::serialize(&item).unwrap();
+        let cmd = Cmd::List(ListCmd::Set(key, index, item));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Set(res)) => res,
+            _ => unreachable!(),
+        }
+    }
+
+    pub async fn ltrim<T>(&mut self, key: &str, start: usize, stop: usize) -> Result<(), LTrimError> {
+        let cmd = Cmd::List(ListCmd::Trim(key, start, stop));
+        match handle_cmd(&mut self.node, cmd).await {
+            CmdResult::List(ListCmdResult::Trim(res)) => res,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[cfg(test)]

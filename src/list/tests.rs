@@ -118,5 +118,22 @@ fn list() {
 		}).await;
 		assert!(res.is_ok());
 		assert_eq!(res.unwrap(), Some(1));
+
+		let res = kadis.lset("cats", 0, Cat {
+			name: "Kirby".into(),
+			color: "gray".into(),
+		}).await;
+		assert!(res.is_ok());
+
+		let res = kadis.lrem::<Cat>("cats", 1).await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), Cat {
+			name: "Herbert".into(),
+			color: "orange".into(),
+		});
+
+		let res = kadis.llen("cats").await;
+		assert!(res.is_ok());
+		assert_eq!(res.unwrap(), 1);
 	});
 }

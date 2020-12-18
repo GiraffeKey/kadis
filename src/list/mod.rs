@@ -322,9 +322,10 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 			let list = get_list!(node, items_key, ListCmdResult, Range, LRangeError);
 			let mut items = Vec::new();
 
-			if stop > list.len() {
+			if stop >= list.len() {
 				return ListCmdResult::Range(Err(LRangeError::OutOfBounds {
 					key: key.into(),
+					index: stop,
 					len: list.len(),
 				}));
 			}
@@ -353,6 +354,109 @@ pub async fn handle_list_cmd(node: &mut Node, cmd: ListCmd<'_>) -> ListCmdResult
 
 			ListCmdResult::Range(Ok(items))
 		},
-		_ => unimplemented!(),
+		Rem(key, index) => {
+			let items_key = format!("kl-items-{}", key);
+			let mut list = get_list!(node, items_key, ListCmdResult, Rem, LRemError);
+
+			if index >= list.len() {
+				return ListCmdResult::Rem(Err(LRemError::OutOfBounds {
+					key: key.into(),
+					index,
+					len: list.len(),
+				}))
+			}
+
+			let id = list.remove(index);
+
+			let item_key = format!("kl-{}", id);
+			let item = match node.get(&item_key).await {
+				Ok(data) => data,
+				Err(err) => return match err {
+					GetError::NotFound => ListCmdResult::Rem(Err(LRemError::NotFound {
+						key: key.into(),
+						index,
+					})),
+					GetError::QuorumFailed => ListCmdResult::Rem(Err(LRemError::QuorumFailed {
+						key: key.into(),
+						index,
+					})),
+					GetError::Timeout => ListCmdResult::Rem(Err(LRemError::Timeout {
+						key: key.into(),
+						index,
+					})),
+				},
+			};
+
+			node.remove(&item_key);
+
+			join_list!(node, items_key, list, ListCmdResult, Rem, LRemError);
+
+			ListCmdResult::Rem(Ok(item))
+		},
+		Set(key, index, item) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Set, LSetError);
+
+			if index >= list.len() {
+				return ListCmdResult::Set(Err(LSetError::OutOfBounds {
+					key: key.into(),
+					index,
+					len: list.len(),
+				}))
+			}
+
+			let id = &list[index];
+			let item_key = format!("kl-{}", id);
+
+			match node.put(&item_key, item).await {
+				Ok(_) => (),
+				Err(err) => return match err {
+					PutError::QuorumFailed => ListCmdResult::Set(Err(LSetError::QuorumFailed {
+						key: key.into(),
+						index,
+					})),
+					PutError::Timeout => ListCmdResult::Set(Err(LSetError::Timeout {
+						key: key.into(),
+						index,
+					})),
+				}
+			}
+
+			ListCmdResult::Set(Ok(()))
+		},
+		Trim(key, start, stop) => {
+			let items_key = format!("kl-items-{}", key);
+			let list = get_list!(node, items_key, ListCmdResult, Trim, LTrimError);
+
+			if stop >= list.len() {
+				return ListCmdResult::Trim(Err(LTrimError::OutOfBounds {
+					key: key.into(),
+					index: stop,
+					len: list.len(),
+				}))
+			}
+
+			if start > 0 {
+				for id in &list[0..start] {
+					let item_key = format!("kl-{}", id);
+					node.remove(&item_key);
+				}
+			}
+
+			if stop < list.len() - 1 {
+				for id in &list[stop + 1..list.len()] {
+					let item_key = format!("kl-{}", id);
+					node.remove(&item_key);
+				}
+			}
+
+			let list = &list[start..=stop];
+
+			join_list!(node, items_key, list, ListCmdResult, Trim, LTrimError);
+
+			ListCmdResult::Trim(Ok(()))
+		},
+		Move(key, dest, right) => unimplemented!(),
+		RPopLPush(key, dest) => unimplemented!(),
 	}
 }
